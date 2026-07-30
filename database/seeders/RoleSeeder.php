@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\PermissionRegistrar;
 
 class RoleSeeder extends Seeder
 {
@@ -12,28 +13,36 @@ class RoleSeeder extends Seeder
      */
     public function run(): void
     {
+        // Clear the Spatie permission cache.
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
         $roles = [
             [
                 'name' => 'admin',
-                'display_name' => 'Administrator',
-                'description' => 'System administrator with full access.',
-                'created_at' => now(),
-                'updated_at' => now(),
+                'guard_name' => 'web',
             ],
             [
                 'name' => 'customer',
-                'display_name' => 'Customer',
-                'description' => 'Normal customer who can buy products.',
-                'created_at' => now(),
-                'updated_at' => now(),
+                'guard_name' => 'web',
             ],
         ];
 
         foreach ($roles as $role) {
             DB::table('roles')->updateOrInsert(
-                ['name' => $role['name']],
-                $role
+                [
+                    'name' => $role['name'],
+                    'guard_name' => $role['guard_name'],
+                ],
+                [
+                    'name' => $role['name'],
+                    'guard_name' => $role['guard_name'],
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ]
             );
         }
+
+        // Clear the cache again after inserting roles.
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 }
