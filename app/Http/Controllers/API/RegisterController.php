@@ -126,7 +126,7 @@ class RegisterController extends BaseController
         return $this->sendResponse($success, 'User profile fetched successfully.');
     }
 
-    /**no
+    /**
      * Logout API
      */
     public function logout(Request $request): JsonResponse

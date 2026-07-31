@@ -14,7 +14,7 @@ use Throwable;
 final class HealthController extends Controller
 {
     #[OA\Get(
-        path: '/system/health',
+        path: '/v1/system/health',
         operationId: 'getSystemHealth',
         summary: 'Check API health',
         description: 'Confirms that the RushPi Laravel application is running.',
@@ -51,7 +51,7 @@ final class HealthController extends Controller
     }
 
     #[OA\Get(
-        path: '/system/readiness',
+        path: '/v1/system/readiness',
         operationId: 'getSystemReadiness',
         summary: 'Check API readiness',
         description: 'Checks the Laravel application, MySQL database and Redis connection.',

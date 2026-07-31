@@ -1,11 +1,20 @@
 <?php
 
+<<<<<<< HEAD
+=======
+declare(strict_types=1);
+
+>>>>>>> e45c95769f1b27e00d5a08ad9b380b2e95826234
 namespace App\OpenApi;
 
 use OpenApi\Attributes as OA;
 
 #[OA\Info(
+<<<<<<< HEAD
     version: '0.1.0',
+=======
+    version: '1.0.0',
+>>>>>>> e45c95769f1b27e00d5a08ad9b380b2e95826234
     title: 'RushPi Marketplace API',
     description: 'Backend API contract for the RushPi verified electronics marketplace.',
     contact: new OA\Contact(
@@ -13,14 +22,20 @@ use OpenApi\Attributes as OA;
     )
 )]
 #[OA\Server(
+<<<<<<< HEAD
     url: '/api/v1',
     description: 'RushPi API Version 1'
+=======
+    url: '/api',
+    description: 'RushPi production API'
+>>>>>>> e45c95769f1b27e00d5a08ad9b380b2e95826234
 )]
 #[OA\SecurityScheme(
     securityScheme: 'sanctum',
     type: 'http',
     scheme: 'bearer',
     bearerFormat: 'Bearer token',
+<<<<<<< HEAD
     description: 'Enter the authentication token without adding the word Bearer.'
 )]
 #[OA\Tag(
@@ -30,6 +45,153 @@ use OpenApi\Attributes as OA;
 #[OA\Tag(
     name: 'Authentication',
     description: 'Registration, login, verification, logout and current-user endpoints.'
+=======
+    description: 'Enter only the Sanctum token. Swagger adds the Bearer prefix automatically.'
+)]
+#[OA\Tag(
+    name: 'System',
+    description: 'Application health and infrastructure readiness.'
+)]
+#[OA\Tag(
+    name: 'Authentication',
+    description: 'Customer registration, authentication and account access.'
+)]
+#[OA\Tag(
+    name: 'Seller Profiles',
+    description: 'Seller business profile management.'
+)]
+#[OA\Schema(
+    schema: 'User',
+    type: 'object',
+    required: [
+        'id',
+        'name',
+        'email',
+        'role',
+        'status',
+    ],
+    properties: [
+        new OA\Property(
+            property: 'id',
+            type: 'integer',
+            format: 'int64',
+            example: 1
+        ),
+        new OA\Property(
+            property: 'name',
+            type: 'string',
+            example: 'Guillaume Karangwa'
+        ),
+        new OA\Property(
+            property: 'email',
+            type: 'string',
+            format: 'email',
+            example: 'guillaume@example.com'
+        ),
+        new OA\Property(
+            property: 'phone',
+            type: 'string',
+            nullable: true,
+            example: '+250788000000'
+        ),
+        new OA\Property(
+            property: 'role',
+            type: 'string',
+            example: 'customer'
+        ),
+        new OA\Property(
+            property: 'status',
+            type: 'string',
+            example: 'active'
+        ),
+        new OA\Property(
+            property: 'address',
+            type: 'string',
+            nullable: true,
+            example: 'Kigali, Rwanda'
+        ),
+    ]
+)]
+#[OA\Schema(
+    schema: 'AuthData',
+    type: 'object',
+    required: [
+        'token',
+        'user',
+    ],
+    properties: [
+        new OA\Property(
+            property: 'token',
+            type: 'string',
+            example: '1|long-sanctum-token'
+        ),
+        new OA\Property(
+            property: 'user',
+            ref: '#/components/schemas/User'
+        ),
+    ]
+)]
+#[OA\Schema(
+    schema: 'SellerProfile',
+    type: 'object',
+    properties: [
+        new OA\Property(
+            property: 'id',
+            type: 'integer',
+            format: 'int64',
+            example: 1
+        ),
+        new OA\Property(
+            property: 'status',
+            type: 'string',
+            example: 'draft'
+        ),
+        new OA\Property(
+            property: 'created_at',
+            type: 'string',
+            format: 'date-time',
+            example: '2026-08-01T00:00:00.000000Z'
+        ),
+        new OA\Property(
+            property: 'updated_at',
+            type: 'string',
+            format: 'date-time',
+            example: '2026-08-01T00:00:00.000000Z'
+        ),
+    ]
+)]
+#[OA\Schema(
+    schema: 'UnauthenticatedResponse',
+    type: 'object',
+    properties: [
+        new OA\Property(
+            property: 'message',
+            type: 'string',
+            example: 'Unauthenticated.'
+        ),
+    ]
+)]
+#[OA\Schema(
+    schema: 'SellerErrorResponse',
+    type: 'object',
+    properties: [
+        new OA\Property(
+            property: 'success',
+            type: 'boolean',
+            example: false
+        ),
+        new OA\Property(
+            property: 'message',
+            type: 'string',
+            example: 'You are not allowed to perform this action.'
+        ),
+        new OA\Property(
+            property: 'data',
+            nullable: true,
+            example: null
+        ),
+    ]
+>>>>>>> e45c95769f1b27e00d5a08ad9b380b2e95826234
 )]
 final class OpenApiSpec
 {

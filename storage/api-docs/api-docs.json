@@ -1,0 +1,116 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "RushPi Marketplace API",
+        "description": "Backend API contract for the RushPi verified electronics marketplace.",
+        "contact": {
+            "name": "RushPi Backend Team"
+        },
+        "version": "0.1.0"
+    },
+    "servers": [
+        {
+            "url": "/api/v1",
+            "description": "RushPi API Version 1"
+        }
+    ],
+    "paths": {
+        "/v1/system/health": {
+            "get": {
+                "tags": [
+                    "System"
+                ],
+                "summary": "Check API health",
+                "description": "Confirms that the RushPi Laravel application is running.",
+                "operationId": "getSystemHealth",
+                "responses": {
+                    "200": {
+                        "description": "Application is running.",
+                        "content": {
+                            "application/json": {
+                                "schema": {},
+                                "example": {
+                                    "success": true,
+                                    "message": "RushPi API is healthy.",
+                                    "data": {
+                                        "status": "up",
+                                        "version": "v1",
+                                        "timestamp": "2026-07-31T17:00:00+00:00"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/system/readiness": {
+            "get": {
+                "tags": [
+                    "System"
+                ],
+                "summary": "Check API readiness",
+                "description": "Checks the Laravel application, MySQL database and Redis connection.",
+                "operationId": "getSystemReadiness",
+                "responses": {
+                    "200": {
+                        "description": "All required services are available.",
+                        "content": {
+                            "application/json": {
+                                "schema": {},
+                                "example": {
+                                    "success": true,
+                                    "message": "RushPi API is ready.",
+                                    "data": {
+                                        "ready": true,
+                                        "checks": {
+                                            "application": true,
+                                            "database": true,
+                                            "redis": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "One or more required services are unavailable.",
+                        "content": {
+                            "application/json": {
+                                "schema": {},
+                                "example": {
+                                    "success": false,
+                                    "message": "RushPi API is not ready.",
+                                    "data": {
+                                        "ready": false,
+                                        "checks": {
+                                            "application": true,
+                                            "database": false,
+                                            "redis": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "sanctum": {
+                "type": "http",
+                "description": "Enter the authentication token without adding the word Bearer.",
+                "bearerFormat": "Bearer token",
+                "scheme": "bearer"
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "System",
+            "description": "Application health and infrastructure-readiness endpoints."
+        }
+    ]
+}
