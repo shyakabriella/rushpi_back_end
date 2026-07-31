@@ -19,6 +19,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Throwable;
+use function in_array;
 
 class SellerProfileController extends Controller
 {
@@ -116,6 +117,7 @@ class SellerProfileController extends Controller
             ], 500);
         }
     }
+
 
     /**
      * Return one seller business.
