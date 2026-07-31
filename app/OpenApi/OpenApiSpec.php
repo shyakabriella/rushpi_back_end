@@ -11,7 +11,7 @@ use OpenApi\Attributes as OA;
 
 #[OA\Info(
 <<<<<<< HEAD
-    version: '0.1.0',
+    version: '1.0.0',
 =======
     version: '1.0.0',
 >>>>>>> e45c95769f1b27e00d5a08ad9b380b2e95826234
@@ -23,7 +23,7 @@ use OpenApi\Attributes as OA;
 )]
 #[OA\Server(
 <<<<<<< HEAD
-    url: '/api/v1',
+    url: '/api',
     description: 'RushPi API Version 1'
 =======
     url: '/api',
