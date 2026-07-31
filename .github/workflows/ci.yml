@@ -1,0 +1,143 @@
+name: RushPi Backend CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+
+  pull_request:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rushpi-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-quality:
+    name: Test and validate backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v5
+
+      - name: Prepare Docker environment
+        run: |
+          cp .env.docker.example .env.docker
+
+          APP_KEY_VALUE="base64:$(openssl rand -base64 32)"
+
+          sed -i \
+            "s|^APP_KEY=.*|APP_KEY=${APP_KEY_VALUE}|" \
+            .env.docker
+
+          sed -i \
+            "s|^APP_ENV=.*|APP_ENV=testing|" \
+            .env.docker
+
+          sed -i \
+            "s|^APP_DEBUG=.*|APP_DEBUG=false|" \
+            .env.docker
+
+          sed -i \
+            "s|^DB_PASSWORD=.*|DB_PASSWORD=rushpi_ci_password|" \
+            .env.docker
+
+          sed -i \
+            "s|^MYSQL_ROOT_PASSWORD=.*|MYSQL_ROOT_PASSWORD=rushpi_ci_root_password|" \
+            .env.docker
+
+      - name: Validate Docker Compose configuration
+        run: |
+          docker compose \
+            --env-file .env.docker \
+            config --quiet
+
+      - name: Build Laravel image
+        run: |
+          docker compose \
+            --env-file .env.docker \
+            build --pull app
+
+      - name: Start MySQL and Redis
+        run: |
+          docker compose \
+            --env-file .env.docker \
+            up -d --wait mysql redis
+
+      - name: Validate Composer configuration
+        run: |
+          docker compose \
+            --env-file .env.docker \
+            run --rm app \
+            composer validate --strict
+
+      - name: Check application boot
+        run: |
+          docker compose \
+            --env-file .env.docker \
+            run --rm app \
+            php artisan about
+
+      - name: Run migrations and seeders
+        run: |
+          docker compose \
+            --env-file .env.docker \
+            run --rm app \
+            php artisan migrate:fresh --seed --force
+
+      - name: Check code formatting
+        run: |
+          docker compose \
+            --env-file .env.docker \
+            run --rm app \
+            ./vendor/bin/pint --test
+
+      - name: Run static analysis
+        run: |
+          docker compose \
+            --env-file .env.docker \
+            run --rm app \
+            ./vendor/bin/phpstan analyse --memory-limit=1G
+
+      - name: Run automated tests
+        run: |
+          docker compose \
+            --env-file .env.docker \
+            run --rm app \
+            php artisan test
+
+      - name: Validate Swagger generation
+        run: |
+          docker compose \
+            --env-file .env.docker \
+            run --rm app \
+            php artisan l5-swagger:generate
+
+      - name: Audit Composer dependencies
+        run: |
+          docker compose \
+            --env-file .env.docker \
+            run --rm app \
+            composer audit --locked --abandoned=report
+
+      - name: Show container logs after failure
+        if: failure()
+        run: |
+          docker compose \
+            --env-file .env.docker \
+            logs --no-color mysql redis
+
+      - name: Stop and remove CI containers
+        if: always()
+        run: |
+          docker compose \
+            --env-file .env.docker \
+            down -v --remove-orphans
