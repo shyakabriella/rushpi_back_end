@@ -6,6 +6,7 @@ use App\Http\Controllers\API\RegisterController;
 use App\Http\Controllers\API\V1\Admin\BrandController;
 use App\Http\Controllers\API\V1\Admin\CategoryController;
 use App\Http\Controllers\API\V1\Admin\SellerVerificationController;
+use App\Http\Controllers\API\V1\Seller\InventoryController;
 use App\Http\Controllers\API\V1\Seller\ProductController;
 use App\Http\Controllers\API\V1\Seller\ProductMediaController;
 use App\Http\Controllers\API\V1\Seller\ProductVariantController;
@@ -59,7 +60,7 @@ Route::controller(RegisterController::class)
 | Public catalog routes
 |--------------------------------------------------------------------------
 |
-| Public category, brand and approved product search routes will be
+| Public categories, brands and approved product search routes will be
 | added when the public catalog controller is implemented.
 |
 */
@@ -74,7 +75,7 @@ Route::middleware('auth:sanctum')
     ->group(function (): void {
         /*
         |--------------------------------------------------------------------------
-        | Authenticated account
+        | Authenticated account routes
         |--------------------------------------------------------------------------
         */
 
@@ -166,7 +167,7 @@ Route::middleware('auth:sanctum')
 
                 /*
                 |--------------------------------------------------------------------------
-                | Submit seller application
+                | Submit seller verification application
                 |--------------------------------------------------------------------------
                 */
 
@@ -224,7 +225,7 @@ Route::middleware('auth:sanctum')
                         | Product variant pricing
                         |--------------------------------------------------------------------------
                         |
-                        | Each variant has one price record.
+                        | Each product variant may have one price record.
                         |
                         */
 
@@ -272,6 +273,77 @@ Route::middleware('auth:sanctum')
                             ]
                         )->name(
                             'products.variants.price.patch'
+                        );
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Product variant inventory
+                        |--------------------------------------------------------------------------
+                        |
+                        | Stock changes use InventoryService and create
+                        | permanent stock movement audit records.
+                        |
+                        */
+
+                        Route::get(
+                            'products/{product:public_id}'
+                            .'/variants/{variant:public_id}/inventory',
+                            [
+                                InventoryController::class,
+                                'show',
+                            ]
+                        )->name(
+                            'products.variants.inventory.show'
+                        );
+
+                        Route::post(
+                            'products/{product:public_id}'
+                            .'/variants/{variant:public_id}'
+                            .'/inventory/adjust',
+                            [
+                                InventoryController::class,
+                                'adjust',
+                            ]
+                        )
+                            ->middleware('throttle:60,1')
+                            ->name(
+                                'products.variants.inventory.adjust'
+                            );
+
+                        Route::put(
+                            'products/{product:public_id}'
+                            .'/variants/{variant:public_id}'
+                            .'/inventory/settings',
+                            [
+                                InventoryController::class,
+                                'updateSettings',
+                            ]
+                        )->name(
+                            'products.variants.inventory.settings.update'
+                        );
+
+                        Route::patch(
+                            'products/{product:public_id}'
+                            .'/variants/{variant:public_id}'
+                            .'/inventory/settings',
+                            [
+                                InventoryController::class,
+                                'updateSettings',
+                            ]
+                        )->name(
+                            'products.variants.inventory.settings.patch'
+                        );
+
+                        Route::get(
+                            'products/{product:public_id}'
+                            .'/variants/{variant:public_id}'
+                            .'/inventory/movements',
+                            [
+                                InventoryController::class,
+                                'movements',
+                            ]
+                        )->name(
+                            'products.variants.inventory.movements'
                         );
 
                         /*
