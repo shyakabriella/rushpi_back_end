@@ -7,6 +7,9 @@ use App\Http\Controllers\API\V1\Admin\BrandController;
 use App\Http\Controllers\API\V1\Admin\CategoryController;
 use App\Http\Controllers\API\V1\Admin\SellerVerificationController;
 use App\Http\Controllers\API\V1\Seller\ProductController;
+use App\Http\Controllers\API\V1\Seller\ProductMediaController;
+use App\Http\Controllers\API\V1\Seller\ProductVariantController;
+use App\Http\Controllers\API\V1\Seller\ProductVariantPriceController;
 use App\Http\Controllers\API\V1\Seller\SellerDocumentController;
 use App\Http\Controllers\API\V1\Seller\SellerProfileController;
 use App\Http\Controllers\API\V1\System\HealthController;
@@ -14,7 +17,7 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| Version 1 system routes
+| System routes
 |--------------------------------------------------------------------------
 */
 
@@ -56,8 +59,8 @@ Route::controller(RegisterController::class)
 | Public catalog routes
 |--------------------------------------------------------------------------
 |
-| Public categories, brands and approved product search routes
-| will be added when the public catalog controller is created.
+| Public category, brand and approved product search routes will be
+| added when the public catalog controller is implemented.
 |
 */
 
@@ -71,7 +74,7 @@ Route::middleware('auth:sanctum')
     ->group(function (): void {
         /*
         |--------------------------------------------------------------------------
-        | Authenticated account routes
+        | Authenticated account
         |--------------------------------------------------------------------------
         */
 
@@ -163,7 +166,7 @@ Route::middleware('auth:sanctum')
 
                 /*
                 |--------------------------------------------------------------------------
-                | Submit seller verification application
+                | Submit seller application
                 |--------------------------------------------------------------------------
                 */
 
@@ -191,7 +194,7 @@ Route::middleware('auth:sanctum')
                     ->group(function (): void {
                         /*
                         |--------------------------------------------------------------------------
-                        | Seller product catalog
+                        | Seller products
                         |--------------------------------------------------------------------------
                         */
 
@@ -201,6 +204,129 @@ Route::middleware('auth:sanctum')
                         )->parameters([
                             'products' => 'product',
                         ]);
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Product variants
+                        |--------------------------------------------------------------------------
+                        */
+
+                        Route::apiResource(
+                            'products.variants',
+                            ProductVariantController::class
+                        )->parameters([
+                            'products' => 'product',
+                            'variants' => 'variant',
+                        ]);
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Product variant pricing
+                        |--------------------------------------------------------------------------
+                        |
+                        | Each variant has one price record.
+                        |
+                        */
+
+                        Route::get(
+                            'products/{product:public_id}'
+                            .'/variants/{variant:public_id}/price',
+                            [
+                                ProductVariantPriceController::class,
+                                'show',
+                            ]
+                        )->name(
+                            'products.variants.price.show'
+                        );
+
+                        Route::post(
+                            'products/{product:public_id}'
+                            .'/variants/{variant:public_id}/price',
+                            [
+                                ProductVariantPriceController::class,
+                                'store',
+                            ]
+                        )
+                            ->middleware('throttle:30,1')
+                            ->name(
+                                'products.variants.price.store'
+                            );
+
+                        Route::put(
+                            'products/{product:public_id}'
+                            .'/variants/{variant:public_id}/price',
+                            [
+                                ProductVariantPriceController::class,
+                                'update',
+                            ]
+                        )->name(
+                            'products.variants.price.update'
+                        );
+
+                        Route::patch(
+                            'products/{product:public_id}'
+                            .'/variants/{variant:public_id}/price',
+                            [
+                                ProductVariantPriceController::class,
+                                'update',
+                            ]
+                        )->name(
+                            'products.variants.price.patch'
+                        );
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Product media
+                        |--------------------------------------------------------------------------
+                        */
+
+                        Route::get(
+                            'products/{product:public_id}/media',
+                            [
+                                ProductMediaController::class,
+                                'index',
+                            ]
+                        )->name('products.media.index');
+
+                        Route::post(
+                            'products/{product:public_id}/media',
+                            [
+                                ProductMediaController::class,
+                                'store',
+                            ]
+                        )
+                            ->middleware('throttle:20,1')
+                            ->name('products.media.store');
+
+                        /*
+                         * This route must remain before the dynamic
+                         * {media} routes.
+                         */
+                        Route::patch(
+                            'products/{product:public_id}/media/reorder',
+                            [
+                                ProductMediaController::class,
+                                'reorder',
+                            ]
+                        )->name('products.media.reorder');
+
+                        Route::patch(
+                            'products/{product:public_id}'
+                            .'/media/{media:public_id}/primary',
+                            [
+                                ProductMediaController::class,
+                                'setPrimary',
+                            ]
+                        )->name('products.media.primary');
+
+                        Route::delete(
+                            'products/{product:public_id}'
+                            .'/media/{media:public_id}',
+                            [
+                                ProductMediaController::class,
+                                'destroy',
+                            ]
+                        )->name('products.media.destroy');
                     });
             });
 
