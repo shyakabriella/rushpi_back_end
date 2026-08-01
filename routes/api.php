@@ -138,7 +138,6 @@ Route::middleware('auth:sanctum')
                 | Seller verification applications
                 |--------------------------------------------------------------------------
                 */
-
                 Route::get(
                     'seller-applications',
                     [SellerVerificationController::class, 'index']
