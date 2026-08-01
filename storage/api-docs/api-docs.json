@@ -108,11 +108,20 @@
                     {
                         "name": "status",
                         "in": "query",
-                        "description": "Optional SellerApplicationStatus value.",
+                        "description": "Optional seller application status.",
                         "required": false,
                         "schema": {
                             "type": "string",
-                            "nullable": true
+                            "nullable": true,
+                            "enum": [
+                                "draft",
+                                "submitted",
+                                "under_review",
+                                "more_information_required",
+                                "approved",
+                                "rejected",
+                                "suspended"
+                            ]
                         }
                     },
                     {
@@ -175,13 +184,34 @@
                         }
                     },
                     "401": {
-                        "description": "Unauthenticated."
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthenticatedResponse"
+                                }
+                            }
+                        }
                     },
                     "403": {
-                        "description": "Only administrators may access seller verification."
+                        "description": "Only administrators may access seller verification.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
                     },
                     "422": {
-                        "description": "Invalid query parameters."
+                        "description": "Invalid query parameters.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationErrorResponse"
+                                }
+                            }
+                        }
                     }
                 },
                 "security": [
@@ -213,16 +243,44 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Application retrieved successfully."
+                        "description": "Application retrieved successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SellerApplicationResponse"
+                                }
+                            }
+                        }
                     },
                     "401": {
-                        "description": "Unauthenticated."
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthenticatedResponse"
+                                }
+                            }
+                        }
                     },
                     "403": {
-                        "description": "Administrator permission required."
+                        "description": "Administrator permission required.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
                     },
                     "404": {
-                        "description": "Seller application not found."
+                        "description": "Seller application not found.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotFoundResponse"
+                                }
+                            }
+                        }
                     }
                 },
                 "security": [
@@ -258,30 +316,50 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object"
-                                },
-                                "example": {
-                                    "success": true,
-                                    "message": "Seller verification review started successfully.",
-                                    "data": {
-                                        "public_id": "application-public-id",
-                                        "status": "under_review"
-                                    }
+                                    "$ref": "#/components/schemas/SellerApplicationResponse"
                                 }
                             }
                         }
                     },
                     "401": {
-                        "description": "Unauthenticated."
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthenticatedResponse"
+                                }
+                            }
+                        }
                     },
                     "403": {
-                        "description": "Administrator permission required."
+                        "description": "Administrator permission required.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
                     },
                     "404": {
-                        "description": "Seller application not found."
+                        "description": "Seller application not found.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotFoundResponse"
+                                }
+                            }
+                        }
                     },
                     "422": {
-                        "description": "The application is not in a status that permits review."
+                        "description": "The application is not in a status that permits review.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationErrorResponse"
+                                }
+                            }
+                        }
                     }
                 },
                 "security": [
@@ -340,22 +418,64 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Additional information requested successfully."
+                        "description": "Additional information requested successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SellerApplicationResponse"
+                                }
+                            }
+                        }
                     },
                     "401": {
-                        "description": "Unauthenticated."
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthenticatedResponse"
+                                }
+                            }
+                        }
                     },
                     "403": {
-                        "description": "Administrator permission required."
+                        "description": "Administrator permission required.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
                     },
                     "404": {
-                        "description": "Seller application not found."
+                        "description": "Seller application not found.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotFoundResponse"
+                                }
+                            }
+                        }
                     },
                     "409": {
-                        "description": "The application is assigned to another reviewer."
+                        "description": "The application is assigned to another reviewer.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConflictResponse"
+                                }
+                            }
+                        }
                     },
                     "422": {
-                        "description": "Validation failed or the application status does not permit this action."
+                        "description": "Validation failed or the application status does not permit this action.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationErrorResponse"
+                                }
+                            }
+                        }
                     }
                 },
                 "security": [
@@ -405,22 +525,64 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Seller application approved successfully."
+                        "description": "Seller application approved successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SellerApplicationResponse"
+                                }
+                            }
+                        }
                     },
                     "401": {
-                        "description": "Unauthenticated."
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthenticatedResponse"
+                                }
+                            }
+                        }
                     },
                     "403": {
-                        "description": "Administrator permission required."
+                        "description": "Administrator permission required.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
                     },
                     "404": {
-                        "description": "Seller application not found."
+                        "description": "Seller application not found.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotFoundResponse"
+                                }
+                            }
+                        }
                     },
                     "409": {
-                        "description": "The application is assigned to another reviewer."
+                        "description": "The application is assigned to another reviewer.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConflictResponse"
+                                }
+                            }
+                        }
                     },
                     "422": {
-                        "description": "Application status is invalid or required documents have not been approved."
+                        "description": "Application status is invalid or required documents have not been approved.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationErrorResponse"
+                                }
+                            }
+                        }
                     }
                 },
                 "security": [
@@ -478,22 +640,64 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Seller application rejected successfully."
+                        "description": "Seller application rejected successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SellerApplicationResponse"
+                                }
+                            }
+                        }
                     },
                     "401": {
-                        "description": "Unauthenticated."
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthenticatedResponse"
+                                }
+                            }
+                        }
                     },
                     "403": {
-                        "description": "Administrator permission required."
+                        "description": "Administrator permission required.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
                     },
                     "404": {
-                        "description": "Seller application not found."
+                        "description": "Seller application not found.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotFoundResponse"
+                                }
+                            }
+                        }
                     },
                     "409": {
-                        "description": "The application is assigned to another reviewer."
+                        "description": "The application is assigned to another reviewer.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConflictResponse"
+                                }
+                            }
+                        }
                     },
                     "422": {
-                        "description": "Validation failed or the application status does not permit rejection."
+                        "description": "Validation failed or the application status does not permit rejection.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationErrorResponse"
+                                }
+                            }
+                        }
                     }
                 },
                 "security": [
@@ -553,22 +757,64 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Seller document approved successfully."
+                        "description": "Seller document approved successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SellerDocumentResponse"
+                                }
+                            }
+                        }
                     },
                     "401": {
-                        "description": "Unauthenticated."
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthenticatedResponse"
+                                }
+                            }
+                        }
                     },
                     "403": {
-                        "description": "Administrator permission required."
+                        "description": "Administrator permission required.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
                     },
                     "404": {
-                        "description": "Application or document not found, or document does not belong to the application."
+                        "description": "Application or document not found.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotFoundResponse"
+                                }
+                            }
+                        }
                     },
                     "409": {
-                        "description": "The application is assigned to another reviewer."
+                        "description": "The application is assigned to another reviewer.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConflictResponse"
+                                }
+                            }
+                        }
                     },
                     "422": {
-                        "description": "Document is not clean, is expired, or cannot currently be approved."
+                        "description": "Document is not clean, is expired or cannot currently be approved.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationErrorResponse"
+                                }
+                            }
+                        }
                     }
                 },
                 "security": [
@@ -636,22 +882,64 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Seller document rejected successfully."
+                        "description": "Seller document rejected successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SellerDocumentResponse"
+                                }
+                            }
+                        }
                     },
                     "401": {
-                        "description": "Unauthenticated."
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthenticatedResponse"
+                                }
+                            }
+                        }
                     },
                     "403": {
-                        "description": "Administrator permission required."
+                        "description": "Administrator permission required.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
                     },
                     "404": {
-                        "description": "Application or document not found, or document does not belong to the application."
+                        "description": "Application or document not found.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotFoundResponse"
+                                }
+                            }
+                        }
                     },
                     "409": {
-                        "description": "The application is assigned to another reviewer."
+                        "description": "The application is assigned to another reviewer.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConflictResponse"
+                                }
+                            }
+                        }
                     },
                     "422": {
-                        "description": "Validation failed or the document cannot currently be rejected."
+                        "description": "Validation failed or the document cannot currently be rejected.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationErrorResponse"
+                                }
+                            }
+                        }
                     }
                 },
                 "security": [
@@ -704,13 +992,34 @@
                         }
                     },
                     "401": {
-                        "description": "Unauthenticated."
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthenticatedResponse"
+                                }
+                            }
+                        }
                     },
                     "403": {
-                        "description": "Administrator permission required."
+                        "description": "Administrator permission required.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
                     },
                     "404": {
-                        "description": "Application, document, or stored file not found."
+                        "description": "Application, document or stored file not found.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotFoundResponse"
+                                }
+                            }
+                        }
                     }
                 },
                 "security": [
@@ -769,19 +1078,54 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Seller suspended successfully."
+                        "description": "Seller suspended successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SellerProfileResponse"
+                                }
+                            }
+                        }
                     },
                     "401": {
-                        "description": "Unauthenticated."
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthenticatedResponse"
+                                }
+                            }
+                        }
                     },
                     "403": {
-                        "description": "Administrator permission required."
+                        "description": "Administrator permission required.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
                     },
                     "404": {
-                        "description": "Seller profile or approved application not found."
+                        "description": "Seller profile or approved application not found.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotFoundResponse"
+                                }
+                            }
+                        }
                     },
                     "422": {
-                        "description": "Validation failed or the seller is not currently approved."
+                        "description": "Validation failed or the seller is not currently approved.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationErrorResponse"
+                                }
+                            }
+                        }
                     }
                 },
                 "security": [
@@ -1319,6 +1663,521 @@
                     }
                 ]
             }
+        },
+        "/seller/profiles/{sellerProfile}/applications/{sellerApplication}/documents": {
+            "get": {
+                "tags": [
+                    "Seller Documents"
+                ],
+                "summary": "List seller verification documents",
+                "description": "Returns documents belonging to the selected seller application. The authenticated user must belong to the seller business.",
+                "operationId": "sellerListVerificationDocuments",
+                "parameters": [
+                    {
+                        "name": "sellerProfile",
+                        "in": "path",
+                        "description": "Seller profile public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "seller-profile-public-id"
+                    },
+                    {
+                        "name": "sellerApplication",
+                        "in": "path",
+                        "description": "Seller application public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "seller-application-public-id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Seller documents retrieved successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SellerDocumentCollectionResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthenticatedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The authenticated user does not belong to the seller business.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Seller profile or application not found.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotFoundResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Seller Documents"
+                ],
+                "summary": "Upload a private seller verification document",
+                "description": "Uploads a private verification document to quarantine. Only the seller owner can upload documents. The application must be editable.",
+                "operationId": "sellerUploadVerificationDocument",
+                "parameters": [
+                    {
+                        "name": "sellerProfile",
+                        "in": "path",
+                        "description": "Seller profile public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "seller-profile-public-id"
+                    },
+                    {
+                        "name": "sellerApplication",
+                        "in": "path",
+                        "description": "Seller application public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "seller-application-public-id"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "required": [
+                                    "document_type",
+                                    "document"
+                                ],
+                                "properties": {
+                                    "document_type": {
+                                        "description": "Type of verification document.",
+                                        "type": "string",
+                                        "example": "business_registration_certificate",
+                                        "enum": [
+                                            "business_registration_certificate",
+                                            "tax_certificate",
+                                            "authorized_representative_id",
+                                            "trading_license",
+                                            "payout_account_proof",
+                                            "proof_of_address",
+                                            "store_photo",
+                                            "other"
+                                        ]
+                                    },
+                                    "document": {
+                                        "description": "PDF, JPG, JPEG or PNG document. Maximum size is 10 MB.",
+                                        "type": "string",
+                                        "format": "binary"
+                                    },
+                                    "issued_at": {
+                                        "description": "Date the document was issued.",
+                                        "type": "string",
+                                        "format": "date",
+                                        "example": "2026-01-15",
+                                        "nullable": true
+                                    },
+                                    "expires_at": {
+                                        "description": "Document expiry date. It must not be earlier than today or the issue date.",
+                                        "type": "string",
+                                        "format": "date",
+                                        "example": "2027-01-15",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Document uploaded and placed in quarantine successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SellerDocumentResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthenticatedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Only the seller owner can upload documents.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Seller profile or application not found.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotFoundResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed, duplicate document detected or application cannot be edited.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many upload attempts."
+                    },
+                    "500": {
+                        "description": "The document could not be stored.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SellerErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/seller/profiles/{sellerProfile}/applications/{sellerApplication}/documents/{sellerDocument}/download": {
+            "get": {
+                "tags": [
+                    "Seller Documents"
+                ],
+                "summary": "Download a private seller verification document",
+                "description": "Securely downloads a private verification document and records a document access log.",
+                "operationId": "sellerDownloadVerificationDocument",
+                "parameters": [
+                    {
+                        "name": "sellerProfile",
+                        "in": "path",
+                        "description": "Seller profile public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "seller-profile-public-id"
+                    },
+                    {
+                        "name": "sellerApplication",
+                        "in": "path",
+                        "description": "Seller application public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "seller-application-public-id"
+                    },
+                    {
+                        "name": "sellerDocument",
+                        "in": "path",
+                        "description": "Seller document public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "seller-document-public-id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Private seller verification document.",
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthenticatedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The authenticated user does not belong to the seller business.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Profile, application, document or stored file not found.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotFoundResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/seller/profiles/{sellerProfile}/applications/{sellerApplication}/documents/{sellerDocument}": {
+            "delete": {
+                "tags": [
+                    "Seller Documents"
+                ],
+                "summary": "Delete a seller verification document",
+                "description": "Deletes a document before application submission. Approved documents cannot be deleted.",
+                "operationId": "sellerDeleteVerificationDocument",
+                "parameters": [
+                    {
+                        "name": "sellerProfile",
+                        "in": "path",
+                        "description": "Seller profile public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "seller-profile-public-id"
+                    },
+                    {
+                        "name": "sellerApplication",
+                        "in": "path",
+                        "description": "Seller application public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "seller-application-public-id"
+                    },
+                    {
+                        "name": "sellerDocument",
+                        "in": "path",
+                        "description": "Seller document public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "seller-document-public-id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Seller document deleted successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                },
+                                "example": {
+                                    "success": true,
+                                    "message": "Seller document deleted successfully.",
+                                    "data": null
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthenticatedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Only the seller owner can delete documents.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Profile, application or document not found.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotFoundResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Application cannot be edited or the document is already approved.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/seller/profiles/{sellerProfile}/applications/{sellerApplication}/submit": {
+            "post": {
+                "tags": [
+                    "Seller Documents"
+                ],
+                "summary": "Submit a seller verification application",
+                "description": "Submits a completed seller application for administrator review. Required documents must be clean, valid and not expired.",
+                "operationId": "sellerSubmitVerificationApplication",
+                "parameters": [
+                    {
+                        "name": "sellerProfile",
+                        "in": "path",
+                        "description": "Seller profile public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "seller-profile-public-id"
+                    },
+                    {
+                        "name": "sellerApplication",
+                        "in": "path",
+                        "description": "Seller application public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "seller-application-public-id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Seller application submitted successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SellerApplicationResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthenticatedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Only the seller owner can submit the application.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Seller profile or application not found.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotFoundResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Required documents are missing, infected, expired or still waiting for scanning.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many submission attempts."
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
         }
     },
     "components": {
@@ -1334,28 +2193,33 @@
                 ],
                 "properties": {
                     "id": {
+                        "description": "Internal user ID.",
                         "type": "integer",
                         "format": "int64",
                         "example": 1
                     },
                     "name": {
+                        "description": "User full name.",
                         "type": "string",
                         "example": "Guillaume Karangwa",
                         "maxLength": 255
                     },
                     "email": {
+                        "description": "User email address.",
                         "type": "string",
                         "format": "email",
                         "example": "guillaume@example.com",
                         "maxLength": 255
                     },
                     "phone": {
+                        "description": "User telephone number.",
                         "type": "string",
                         "example": "+250788000000",
                         "nullable": true,
                         "maxLength": 30
                     },
                     "role": {
+                        "description": "User system role.",
                         "type": "string",
                         "example": "customer",
                         "enum": [
@@ -1368,6 +2232,7 @@
                         ]
                     },
                     "status": {
+                        "description": "Current account status.",
                         "type": "string",
                         "example": "active",
                         "enum": [
@@ -1377,6 +2242,7 @@
                         ]
                     },
                     "address": {
+                        "description": "User address.",
                         "type": "string",
                         "example": "Kigali, Rwanda",
                         "nullable": true,
@@ -1455,14 +2321,395 @@
                 },
                 "type": "object"
             },
-            "SellerProfile": {
-                "title": "Seller profile",
+            "SellerAddress": {
+                "title": "Seller address",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 1
+                    },
+                    "type": {
+                        "type": "string",
+                        "example": "business",
+                        "enum": [
+                            "business",
+                            "warehouse",
+                            "pickup",
+                            "return",
+                            "billing"
+                        ]
+                    },
+                    "contact_name": {
+                        "type": "string",
+                        "example": "Guillaume Karangwa",
+                        "nullable": true
+                    },
+                    "contact_phone": {
+                        "type": "string",
+                        "example": "+250788000000",
+                        "nullable": true
+                    },
+                    "country": {
+                        "type": "string",
+                        "example": "Rwanda",
+                        "nullable": true
+                    },
+                    "province": {
+                        "type": "string",
+                        "example": "Kigali City",
+                        "nullable": true
+                    },
+                    "district": {
+                        "type": "string",
+                        "example": "Gasabo",
+                        "nullable": true
+                    },
+                    "sector": {
+                        "type": "string",
+                        "example": "Kacyiru",
+                        "nullable": true
+                    },
+                    "city": {
+                        "type": "string",
+                        "example": "Kigali",
+                        "nullable": true
+                    },
+                    "street_address": {
+                        "type": "string",
+                        "example": "KG 7 Avenue",
+                        "nullable": true
+                    },
+                    "postal_code": {
+                        "type": "string",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "is_default": {
+                        "type": "boolean",
+                        "example": true
+                    }
+                },
+                "type": "object"
+            },
+            "SellerMember": {
+                "title": "Seller member",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 1
+                    },
+                    "role": {
+                        "type": "string",
+                        "example": "owner",
+                        "enum": [
+                            "owner",
+                            "manager",
+                            "staff"
+                        ]
+                    },
+                    "status": {
+                        "type": "string",
+                        "example": "active",
+                        "enum": [
+                            "active",
+                            "inactive",
+                            "suspended"
+                        ]
+                    },
+                    "joined_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-08-01T08:00:00.000000Z",
+                        "nullable": true
+                    },
+                    "user": {
+                        "$ref": "#/components/schemas/User"
+                    }
+                },
+                "type": "object"
+            },
+            "SellerApplicationReview": {
+                "title": "Seller application review",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 1
+                    },
+                    "action": {
+                        "type": "string",
+                        "example": "review_started",
+                        "enum": [
+                            "review_started",
+                            "information_requested",
+                            "application_approved",
+                            "application_rejected",
+                            "document_approved",
+                            "document_rejected",
+                            "seller_suspended"
+                        ]
+                    },
+                    "notes": {
+                        "type": "string",
+                        "example": "Application assigned for administrator review.",
+                        "nullable": true
+                    },
+                    "internal_notes": {
+                        "type": "string",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "reviewed_by": {
+                        "$ref": "#/components/schemas/User"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-08-01T09:00:00.000000Z"
+                    }
+                },
+                "type": "object"
+            },
+            "SellerDocument": {
+                "title": "Seller verification document",
                 "required": [
                     "public_id",
+                    "document_type",
+                    "original_name",
                     "status"
                 ],
                 "properties": {
                     "id": {
+                        "description": "Internal document ID.",
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 1
+                    },
+                    "public_id": {
+                        "description": "Public document identifier used in API routes.",
+                        "type": "string",
+                        "example": "01JZ8W7KQ9B5C4D8F2M6P1R3XT"
+                    },
+                    "document_type": {
+                        "description": "Seller verification document type.",
+                        "type": "string",
+                        "example": "business_registration_certificate",
+                        "enum": [
+                            "business_registration_certificate",
+                            "tax_certificate",
+                            "authorized_representative_id",
+                            "trading_license",
+                            "payout_account_proof",
+                            "proof_of_address",
+                            "store_photo",
+                            "other"
+                        ]
+                    },
+                    "original_name": {
+                        "description": "Original uploaded filename.",
+                        "type": "string",
+                        "example": "business-registration.pdf"
+                    },
+                    "mime_type": {
+                        "description": "Uploaded file MIME type.",
+                        "type": "string",
+                        "example": "application/pdf",
+                        "enum": [
+                            "application/pdf",
+                            "image/jpeg",
+                            "image/png"
+                        ]
+                    },
+                    "size_bytes": {
+                        "description": "Uploaded file size in bytes.",
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 120500
+                    },
+                    "status": {
+                        "description": "Current security scan and review status.",
+                        "type": "string",
+                        "example": "quarantined",
+                        "enum": [
+                            "quarantined",
+                            "pending_scan",
+                            "clean",
+                            "infected",
+                            "approved",
+                            "rejected"
+                        ]
+                    },
+                    "issued_at": {
+                        "description": "Date the document was issued.",
+                        "type": "string",
+                        "format": "date",
+                        "example": "2026-01-15",
+                        "nullable": true
+                    },
+                    "expires_at": {
+                        "description": "Date the document expires.",
+                        "type": "string",
+                        "format": "date",
+                        "example": "2027-01-15",
+                        "nullable": true
+                    },
+                    "scanned_at": {
+                        "description": "Date and time security scanning was completed.",
+                        "type": "string",
+                        "format": "date-time",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "scan_result": {
+                        "description": "Security scan result or scanner response.",
+                        "type": "string",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "reviewed_at": {
+                        "description": "Date and time the administrator reviewed the document.",
+                        "type": "string",
+                        "format": "date-time",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "rejection_reason": {
+                        "description": "Reason the document was rejected.",
+                        "type": "string",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "uploaded_by": {
+                        "$ref": "#/components/schemas/User"
+                    },
+                    "reviewed_by": {
+                        "$ref": "#/components/schemas/User"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-08-01T00:00:00.000000Z"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-08-01T00:00:00.000000Z"
+                    }
+                },
+                "type": "object"
+            },
+            "SellerApplication": {
+                "title": "Seller verification application",
+                "required": [
+                    "public_id",
+                    "version",
+                    "status"
+                ],
+                "properties": {
+                    "id": {
+                        "description": "Internal application ID.",
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 1
+                    },
+                    "public_id": {
+                        "description": "Public application identifier used in API routes.",
+                        "type": "string",
+                        "example": "01JZ8V6QP4EJ9XH7M3B2NK8W5C"
+                    },
+                    "version": {
+                        "description": "Application version.",
+                        "type": "integer",
+                        "example": 1,
+                        "minimum": 1
+                    },
+                    "status": {
+                        "description": "Current verification application status.",
+                        "type": "string",
+                        "example": "submitted",
+                        "enum": [
+                            "draft",
+                            "submitted",
+                            "under_review",
+                            "more_information_required",
+                            "approved",
+                            "rejected",
+                            "suspended"
+                        ]
+                    },
+                    "information_request": {
+                        "description": "Information requested from the seller.",
+                        "type": "string",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "rejection_reason": {
+                        "description": "Reason the application was rejected.",
+                        "type": "string",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "submitted_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-08-01T08:00:00.000000Z",
+                        "nullable": true
+                    },
+                    "review_started_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "decided_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "documents_count": {
+                        "description": "Number of verification documents.",
+                        "type": "integer",
+                        "example": 2,
+                        "minimum": 0
+                    },
+                    "documents": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/SellerDocument"
+                        }
+                    },
+                    "reviews": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/SellerApplicationReview"
+                        }
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-08-01T00:00:00.000000Z"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-08-01T00:00:00.000000Z"
+                    }
+                },
+                "type": "object"
+            },
+            "SellerProfile": {
+                "title": "Seller profile",
+                "required": [
+                    "public_id",
+                    "legal_business_name",
+                    "status"
+                ],
+                "properties": {
+                    "id": {
+                        "description": "Internal seller profile ID.",
                         "type": "integer",
                         "format": "int64",
                         "example": 1
@@ -1473,36 +2720,43 @@
                         "example": "01JZ8T5M8P7BZW2K4X9D6QYH3A"
                     },
                     "legal_business_name": {
+                        "description": "Registered legal business name.",
                         "type": "string",
                         "example": "RushPi Electronics Limited"
                     },
                     "trading_name": {
+                        "description": "Business trading name.",
                         "type": "string",
                         "example": "RushPi Electronics",
                         "nullable": true
                     },
                     "registration_number": {
+                        "description": "Official business registration number.",
                         "type": "string",
                         "example": "RC123456789",
                         "nullable": true
                     },
                     "tax_identification_number": {
+                        "description": "Business tax identification number.",
                         "type": "string",
                         "example": "TIN987654321",
                         "nullable": true
                     },
                     "business_email": {
+                        "description": "Business email address.",
                         "type": "string",
                         "format": "email",
                         "example": "seller@example.com",
                         "nullable": true
                     },
                     "business_phone": {
+                        "description": "Business telephone number.",
                         "type": "string",
                         "example": "+250788000000",
                         "nullable": true
                     },
                     "status": {
+                        "description": "Current seller profile status.",
                         "type": "string",
                         "example": "draft",
                         "enum": [
@@ -1514,51 +2768,175 @@
                         ]
                     },
                     "approved_at": {
+                        "description": "Date and time the seller was approved.",
                         "type": "string",
                         "format": "date-time",
-                        "example": null,
+                        "example": "2026-08-01T10:30:00.000000Z",
                         "nullable": true
                     },
                     "suspended_at": {
+                        "description": "Date and time the seller was suspended.",
                         "type": "string",
                         "format": "date-time",
                         "example": null,
                         "nullable": true
                     },
                     "suspension_reason": {
+                        "description": "Reason the seller was suspended.",
                         "type": "string",
                         "example": null,
                         "nullable": true
                     },
                     "addresses": {
+                        "description": "Seller business addresses.",
                         "type": "array",
                         "items": {
-                            "type": "object"
+                            "$ref": "#/components/schemas/SellerAddress"
                         }
                     },
                     "members": {
+                        "description": "Users belonging to the seller business.",
                         "type": "array",
                         "items": {
-                            "type": "object"
+                            "$ref": "#/components/schemas/SellerMember"
+                        }
+                    },
+                    "documents": {
+                        "description": "Seller verification documents.",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/SellerDocument"
                         }
                     },
                     "applications": {
+                        "description": "Seller verification applications.",
                         "type": "array",
                         "items": {
-                            "type": "object"
+                            "$ref": "#/components/schemas/SellerApplication"
                         }
                     },
                     "created_at": {
                         "type": "string",
                         "format": "date-time",
-                        "example": "2026-08-01T00:00:00.000000Z",
-                        "nullable": true
+                        "example": "2026-08-01T00:00:00.000000Z"
                     },
                     "updated_at": {
                         "type": "string",
                         "format": "date-time",
-                        "example": "2026-08-01T00:00:00.000000Z",
+                        "example": "2026-08-01T00:00:00.000000Z"
+                    }
+                },
+                "type": "object"
+            },
+            "SuccessResponse": {
+                "title": "Generic success response",
+                "required": [
+                    "success",
+                    "message"
+                ],
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "Operation completed successfully."
+                    },
+                    "data": {
+                        "type": "object",
                         "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "SellerProfileResponse": {
+                "title": "Seller profile response",
+                "required": [
+                    "success",
+                    "message",
+                    "data"
+                ],
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "Seller profile retrieved successfully."
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/SellerProfile"
+                    }
+                },
+                "type": "object"
+            },
+            "SellerApplicationResponse": {
+                "title": "Seller application response",
+                "required": [
+                    "success",
+                    "message",
+                    "data"
+                ],
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "Seller application retrieved successfully."
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/SellerApplication"
+                    }
+                },
+                "type": "object"
+            },
+            "SellerDocumentResponse": {
+                "title": "Seller document response",
+                "required": [
+                    "success",
+                    "message",
+                    "data"
+                ],
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "Seller document uploaded successfully."
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/SellerDocument"
+                    }
+                },
+                "type": "object"
+            },
+            "SellerDocumentCollectionResponse": {
+                "title": "Seller document collection response",
+                "required": [
+                    "success",
+                    "message",
+                    "data"
+                ],
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "Seller documents retrieved successfully."
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/SellerDocument"
+                        }
                     }
                 },
                 "type": "object"
@@ -1568,7 +2946,7 @@
                 "required": [
                     "success",
                     "message",
-                    "data"
+                    "errors"
                 ],
                 "properties": {
                     "success": {
@@ -1579,11 +2957,11 @@
                         "type": "string",
                         "example": "Validation Error."
                     },
-                    "data": {
+                    "errors": {
                         "type": "object",
                         "example": {
-                            "email": [
-                                "The email field is required."
+                            "document": [
+                                "The document field is required."
                             ]
                         }
                     }
@@ -1603,6 +2981,60 @@
                 },
                 "type": "object"
             },
+            "ForbiddenResponse": {
+                "title": "Forbidden response",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "You are not allowed to perform this action."
+                    },
+                    "data": {
+                        "example": null,
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "NotFoundResponse": {
+                "title": "Not found response",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "The requested resource was not found."
+                    },
+                    "data": {
+                        "example": null,
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "ConflictResponse": {
+                "title": "Conflict response",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "The resource is currently assigned to another reviewer."
+                    },
+                    "data": {
+                        "example": null,
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
             "SellerErrorResponse": {
                 "title": "Seller operation error response",
                 "required": [
@@ -1616,11 +3048,46 @@
                     },
                     "message": {
                         "type": "string",
-                        "example": "The seller business profile could not be created."
+                        "example": "You are not allowed to perform this action."
                     },
                     "data": {
                         "example": null,
                         "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "SellerApprovalRequiredResponse": {
+                "title": "Approved seller required response",
+                "required": [
+                    "success",
+                    "message",
+                    "data"
+                ],
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "Your seller business must be approved before you can use selling functions."
+                    },
+                    "data": {
+                        "properties": {
+                            "seller_status": {
+                                "type": "string",
+                                "example": "pending_verification",
+                                "enum": [
+                                    "draft",
+                                    "pending_verification",
+                                    "approved",
+                                    "rejected",
+                                    "suspended"
+                                ]
+                            }
+                        },
+                        "type": "object"
                     }
                 },
                 "type": "object"
@@ -1629,7 +3096,7 @@
         "securitySchemes": {
             "sanctum": {
                 "type": "http",
-                "description": "Enter only the Sanctum token. Swagger adds the Bearer prefix automatically.",
+                "description": "Enter only the Sanctum token. Swagger automatically adds the Bearer prefix.",
                 "bearerFormat": "Bearer token",
                 "scheme": "bearer"
             }
@@ -1642,11 +3109,15 @@
         },
         {
             "name": "Authentication",
-            "description": "Registration, login, logout and authenticated-user endpoints."
+            "description": "Customer registration, login, logout and authenticated-user endpoints."
         },
         {
             "name": "Seller Profiles",
             "description": "Seller business profile creation and management endpoints."
+        },
+        {
+            "name": "Seller Documents",
+            "description": "Private seller verification document upload, access and application submission."
         },
         {
             "name": "Seller Verification Admin",
