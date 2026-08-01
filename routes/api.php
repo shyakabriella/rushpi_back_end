@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\API\RegisterController;
 use App\Http\Controllers\API\V1\Admin\BrandController;
 use App\Http\Controllers\API\V1\Admin\CategoryController;
+use App\Http\Controllers\API\V1\Admin\ProductModerationController;
 use App\Http\Controllers\API\V1\Admin\SellerVerificationController;
 use App\Http\Controllers\API\V1\Seller\InventoryController;
 use App\Http\Controllers\API\V1\Seller\ProductController;
@@ -61,7 +62,7 @@ Route::controller(RegisterController::class)
 |--------------------------------------------------------------------------
 |
 | Public categories, brands and approved product search routes will be
-| added when the public catalog controller is implemented.
+| added after the public catalog controller is implemented.
 |
 */
 
@@ -208,6 +209,22 @@ Route::middleware('auth:sanctum')
 
                         /*
                         |--------------------------------------------------------------------------
+                        | Submit product for moderation
+                        |--------------------------------------------------------------------------
+                        */
+
+                        Route::post(
+                            'products/{product:public_id}/submit',
+                            [
+                                ProductController::class,
+                                'submitForReview',
+                            ]
+                        )
+                            ->middleware('throttle:10,1')
+                            ->name('products.submit');
+
+                        /*
+                        |--------------------------------------------------------------------------
                         | Product variants
                         |--------------------------------------------------------------------------
                         */
@@ -224,9 +241,6 @@ Route::middleware('auth:sanctum')
                         |--------------------------------------------------------------------------
                         | Product variant pricing
                         |--------------------------------------------------------------------------
-                        |
-                        | Each product variant may have one price record.
-                        |
                         */
 
                         Route::get(
@@ -279,10 +293,6 @@ Route::middleware('auth:sanctum')
                         |--------------------------------------------------------------------------
                         | Product variant inventory
                         |--------------------------------------------------------------------------
-                        |
-                        | Stock changes use InventoryService and create
-                        | permanent stock movement audit records.
-                        |
                         */
 
                         Route::get(
@@ -371,8 +381,8 @@ Route::middleware('auth:sanctum')
                             ->name('products.media.store');
 
                         /*
-                         * This route must remain before the dynamic
-                         * {media} routes.
+                         * Keep this fixed path before routes containing
+                         * the dynamic {media} route parameter.
                          */
                         Route::patch(
                             'products/{product:public_id}/media/reorder',
@@ -429,18 +439,60 @@ Route::middleware('auth:sanctum')
 
                 /*
                 |--------------------------------------------------------------------------
+                | Product moderation
+                |--------------------------------------------------------------------------
+                |
+                | The controller and request verify that the authenticated
+                | user has the admin or superadmin role.
+                |
+                */
+
+                Route::get(
+                    'products',
+                    [
+                        ProductModerationController::class,
+                        'index',
+                    ]
+                )->name('products.index');
+
+                Route::get(
+                    'products/{product:public_id}',
+                    [
+                        ProductModerationController::class,
+                        'show',
+                    ]
+                )->name('products.show');
+
+                Route::post(
+                    'products/{product:public_id}/moderate',
+                    [
+                        ProductModerationController::class,
+                        'moderate',
+                    ]
+                )
+                    ->middleware('throttle:30,1')
+                    ->name('products.moderate');
+
+                /*
+                |--------------------------------------------------------------------------
                 | Seller verification applications
                 |--------------------------------------------------------------------------
                 */
 
                 Route::get(
                     'seller-applications',
-                    [SellerVerificationController::class, 'index']
+                    [
+                        SellerVerificationController::class,
+                        'index',
+                    ]
                 )->name('seller-applications.index');
 
                 Route::get(
                     'seller-applications/{sellerApplication:public_id}',
-                    [SellerVerificationController::class, 'show']
+                    [
+                        SellerVerificationController::class,
+                        'show',
+                    ]
                 )->name('seller-applications.show');
 
                 Route::post(
