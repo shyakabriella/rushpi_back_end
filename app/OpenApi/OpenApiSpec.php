@@ -31,22 +31,11 @@ use OpenApi\Attributes as OA;
 )]
 #[OA\Tag(
     name: 'Authentication',
-<<<<<<< HEAD
-    description: 'Registration, login, logout and authenticated-user endpoints.'
-=======
     description: 'Customer registration, login, logout and authenticated-user endpoints.'
->>>>>>> 088256b42eea012e992e492dac4561846ebe0631
 )]
 #[OA\Tag(
     name: 'Seller Profiles',
     description: 'Seller business profile creation and management endpoints.'
-<<<<<<< HEAD
-)]
-#[OA\Tag(
-    name: 'Seller Verification Admin',
-    description: 'Administrator endpoints for reviewing and deciding seller verification applications.'
-=======
->>>>>>> 088256b42eea012e992e492dac4561846ebe0631
 )]
 #[OA\Tag(
     name: 'Seller Documents',
@@ -175,8 +164,6 @@ use OpenApi\Attributes as OA;
 #[OA\Schema(
     schema: 'AuthSuccessResponse',
     title: 'Authentication success response',
-<<<<<<< HEAD
-=======
     type: 'object',
     required: [
         'success',
@@ -245,73 +232,7 @@ use OpenApi\Attributes as OA;
 #[OA\Schema(
     schema: 'SellerAddress',
     title: 'Seller address',
->>>>>>> 088256b42eea012e992e492dac4561846ebe0631
     type: 'object',
-    required: [
-        'success',
-        'data',
-        'message',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'success',
-            type: 'boolean',
-            example: true
-        ),
-        new OA\Property(
-            property: 'data',
-            ref: '#/components/schemas/AuthData'
-        ),
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'User logged in successfully.'
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'UserProfileResponse',
-    title: 'Authenticated user response',
-    type: 'object',
-    required: [
-        'success',
-        'data',
-        'message',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'success',
-            type: 'boolean',
-            example: true
-        ),
-        new OA\Property(
-            property: 'data',
-            type: 'object',
-            required: [
-                'user',
-            ],
-            properties: [
-                new OA\Property(
-                    property: 'user',
-                    ref: '#/components/schemas/User'
-                ),
-            ]
-        ),
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'User profile fetched successfully.'
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'SellerProfile',
-    title: 'Seller profile',
-    type: 'object',
-    required: [
-        'public_id',
-        'status',
-    ],
     properties: [
         new OA\Property(
             property: 'id',
@@ -320,45 +241,6 @@ use OpenApi\Attributes as OA;
             example: 1
         ),
         new OA\Property(
-<<<<<<< HEAD
-            property: 'public_id',
-            description: 'Public seller profile identifier used in API routes.',
-            type: 'string',
-            example: '01JZ8T5M8P7BZW2K4X9D6QYH3A'
-        ),
-        new OA\Property(
-            property: 'legal_business_name',
-            type: 'string',
-            example: 'RushPi Electronics Limited'
-        ),
-        new OA\Property(
-            property: 'trading_name',
-            type: 'string',
-            nullable: true,
-            example: 'RushPi Electronics'
-        ),
-        new OA\Property(
-            property: 'registration_number',
-            type: 'string',
-            nullable: true,
-            example: 'RC123456789'
-        ),
-        new OA\Property(
-            property: 'tax_identification_number',
-            type: 'string',
-            nullable: true,
-            example: 'TIN987654321'
-        ),
-        new OA\Property(
-            property: 'business_email',
-            type: 'string',
-            format: 'email',
-            nullable: true,
-            example: 'seller@example.com'
-        ),
-        new OA\Property(
-            property: 'business_phone',
-=======
             property: 'type',
             type: 'string',
             enum: [
@@ -378,24 +260,11 @@ use OpenApi\Attributes as OA;
         ),
         new OA\Property(
             property: 'contact_phone',
->>>>>>> 088256b42eea012e992e492dac4561846ebe0631
             type: 'string',
             nullable: true,
             example: '+250788000000'
         ),
         new OA\Property(
-<<<<<<< HEAD
-            property: 'status',
-            type: 'string',
-            enum: [
-                'draft',
-                'pending_verification',
-                'approved',
-                'rejected',
-                'suspended',
-            ],
-            example: 'draft'
-=======
             property: 'country',
             type: 'string',
             nullable: true,
@@ -689,61 +558,17 @@ use OpenApi\Attributes as OA;
         new OA\Property(
             property: 'reviewed_by',
             ref: '#/components/schemas/User'
->>>>>>> 088256b42eea012e992e492dac4561846ebe0631
-        ),
-        new OA\Property(
-            property: 'approved_at',
-            type: 'string',
-            format: 'date-time',
-            nullable: true,
-            example: null
-        ),
-        new OA\Property(
-            property: 'suspended_at',
-            type: 'string',
-            format: 'date-time',
-            nullable: true,
-            example: null
-        ),
-        new OA\Property(
-            property: 'suspension_reason',
-            type: 'string',
-            nullable: true,
-            example: null
-        ),
-        new OA\Property(
-            property: 'addresses',
-            type: 'array',
-            items: new OA\Items(
-                type: 'object'
-            )
-        ),
-        new OA\Property(
-            property: 'members',
-            type: 'array',
-            items: new OA\Items(
-                type: 'object'
-            )
-        ),
-        new OA\Property(
-            property: 'applications',
-            type: 'array',
-            items: new OA\Items(
-                type: 'object'
-            )
         ),
         new OA\Property(
             property: 'created_at',
             type: 'string',
             format: 'date-time',
-            nullable: true,
             example: '2026-08-01T00:00:00.000000Z'
         ),
         new OA\Property(
             property: 'updated_at',
             type: 'string',
             format: 'date-time',
-            nullable: true,
             example: '2026-08-01T00:00:00.000000Z'
         ),
     ]
@@ -1203,48 +1028,10 @@ use OpenApi\Attributes as OA;
     ]
 )]
 #[OA\Schema(
-<<<<<<< HEAD
-    schema: 'ValidationErrorResponse',
-    title: 'Validation error response',
-    type: 'object',
-    required: [
-        'success',
-        'message',
-        'data',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'success',
-            type: 'boolean',
-            example: false
-        ),
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'Validation Error.'
-        ),
-        new OA\Property(
-            property: 'data',
-            type: 'object',
-            example: [
-                'email' => [
-                    'The email field is required.',
-                ],
-            ]
-        ),
-    ]
-)]
-#[OA\Schema(
     schema: 'UnauthenticatedResponse',
     title: 'Unauthenticated response',
     type: 'object',
     required: [
-=======
-    schema: 'UnauthenticatedResponse',
-    title: 'Unauthenticated response',
-    type: 'object',
-    required: [
->>>>>>> 088256b42eea012e992e492dac4561846ebe0631
         'message',
     ],
     properties: [
@@ -1256,18 +1043,9 @@ use OpenApi\Attributes as OA;
     ]
 )]
 #[OA\Schema(
-<<<<<<< HEAD
-    schema: 'SellerErrorResponse',
-    title: 'Seller operation error response',
-=======
     schema: 'ForbiddenResponse',
     title: 'Forbidden response',
->>>>>>> 088256b42eea012e992e492dac4561846ebe0631
     type: 'object',
-    required: [
-        'success',
-        'message',
-    ],
     properties: [
         new OA\Property(
             property: 'success',
@@ -1277,7 +1055,7 @@ use OpenApi\Attributes as OA;
         new OA\Property(
             property: 'message',
             type: 'string',
-            example: 'The seller business profile could not be created.'
+            example: 'You are not allowed to perform this action.'
         ),
         new OA\Property(
             property: 'data',
