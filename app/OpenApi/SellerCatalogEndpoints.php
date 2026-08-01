@@ -6,12 +6,6 @@ namespace App\OpenApi;
 
 use OpenApi\Attributes as OA;
 
-/*
-|--------------------------------------------------------------------------
-| Seller catalog tags
-|--------------------------------------------------------------------------
-*/
-
 #[OA\Tag(
     name: 'Seller Products',
     description: 'Approved seller product creation, management and moderation submission.'
@@ -32,410 +26,273 @@ use OpenApi\Attributes as OA;
     name: 'Product Media',
     description: 'Product image upload, ordering and primary-image management.'
 )]
-
-/*
-|--------------------------------------------------------------------------
-| Reusable path parameters
-|--------------------------------------------------------------------------
-*/
-
-#[OA\Parameter(
-    parameter: 'SellerProfilePublicId',
-    name: 'sellerProfile',
-    description: 'Public identifier of the approved seller profile.',
-    in: 'path',
-    required: true,
-    schema: new OA\Schema(
-        type: 'string',
-        example: '01K1SELLER123456789ABCDE'
-    )
-)]
-#[OA\Parameter(
-    parameter: 'ProductPublicId',
-    name: 'product',
-    description: 'Public identifier of the seller product.',
-    in: 'path',
-    required: true,
-    schema: new OA\Schema(
-        type: 'string',
-        example: '01K1PRODUCT123456789ABCD'
-    )
-)]
-#[OA\Parameter(
-    parameter: 'VariantPublicId',
-    name: 'variant',
-    description: 'Public identifier of the product variant.',
-    in: 'path',
-    required: true,
-    schema: new OA\Schema(
-        type: 'string',
-        example: '01K1VARIANT123456789ABCD'
-    )
-)]
-#[OA\Parameter(
-    parameter: 'ProductMediaPublicId',
-    name: 'media',
-    description: 'Public identifier of the product media record.',
-    in: 'path',
-    required: true,
-    schema: new OA\Schema(
-        type: 'string',
-        example: '01K1MEDIA123456789ABCDE'
-    )
-)]
-
-/*
-|--------------------------------------------------------------------------
-| Shared seller catalog response schemas
-|--------------------------------------------------------------------------
-*/
-
-#[OA\Schema(
-    schema: 'SellerProductResponse',
-    title: 'Seller Product Response',
-    type: 'object',
-    required: [
-        'success',
-        'message',
-        'data',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'success',
-            type: 'boolean',
-            example: true
-        ),
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'Seller product retrieved successfully.'
-        ),
-        new OA\Property(
-            property: 'data',
-            ref: '#/components/schemas/SellerProduct'
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'SellerProductCollectionResponse',
-    title: 'Seller Product Collection Response',
-    type: 'object',
-    required: [
-        'data',
-        'success',
-        'message',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'data',
-            type: 'array',
-            items: new OA\Items(
-                ref: '#/components/schemas/SellerProduct'
+#[OA\Components(
+    parameters: [
+        new OA\Parameter(
+            parameter: 'SellerProfilePublicId',
+            name: 'sellerProfile',
+            description: 'Public identifier of the approved seller profile.',
+            in: 'path',
+            required: true,
+            schema: new OA\Schema(
+                type: 'string',
+                example: '01K1SELLER123456789ABCDE'
             )
         ),
-        new OA\Property(
-            property: 'links',
-            type: 'object',
-            nullable: true
-        ),
-        new OA\Property(
-            property: 'meta',
-            type: 'object',
-            nullable: true
-        ),
-        new OA\Property(
-            property: 'success',
-            type: 'boolean',
-            example: true
-        ),
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'Seller products retrieved successfully.'
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'SellerProductVariantResponse',
-    title: 'Seller Product Variant Response',
-    type: 'object',
-    required: [
-        'success',
-        'message',
-        'data',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'success',
-            type: 'boolean',
-            example: true
-        ),
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'Product variant retrieved successfully.'
-        ),
-        new OA\Property(
-            property: 'data',
-            ref: '#/components/schemas/SellerProductVariant'
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'SellerProductVariantCollectionResponse',
-    title: 'Seller Product Variant Collection Response',
-    type: 'object',
-    required: [
-        'data',
-        'success',
-        'message',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'data',
-            type: 'array',
-            items: new OA\Items(
-                ref: '#/components/schemas/SellerProductVariant'
+        new OA\Parameter(
+            parameter: 'ProductPublicId',
+            name: 'product',
+            description: 'Public identifier of the seller product.',
+            in: 'path',
+            required: true,
+            schema: new OA\Schema(
+                type: 'string',
+                example: '01K1PRODUCT123456789ABCD'
             )
         ),
-        new OA\Property(
-            property: 'links',
-            type: 'object',
-            nullable: true
+        new OA\Parameter(
+            parameter: 'VariantPublicId',
+            name: 'variant',
+            description: 'Public identifier of the product variant.',
+            in: 'path',
+            required: true,
+            schema: new OA\Schema(
+                type: 'string',
+                example: '01K1VARIANT123456789ABCD'
+            )
         ),
-        new OA\Property(
-            property: 'meta',
-            type: 'object',
-            nullable: true
+        new OA\Parameter(
+            parameter: 'ProductMediaPublicId',
+            name: 'media',
+            description: 'Public identifier of the product media record.',
+            in: 'path',
+            required: true,
+            schema: new OA\Schema(
+                type: 'string',
+                example: '01K1MEDIA123456789ABCDE'
+            )
         ),
-        new OA\Property(
-            property: 'success',
-            type: 'boolean',
-            example: true
-        ),
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'Product variants retrieved successfully.'
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'SellerVariantPriceResponse',
-    title: 'Seller Variant Price Response',
-    type: 'object',
-    required: [
-        'success',
-        'message',
-        'data',
     ],
-    properties: [
-        new OA\Property(
-            property: 'success',
-            type: 'boolean',
-            example: true
-        ),
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'Product variant pricing retrieved successfully.'
-        ),
-        new OA\Property(
-            property: 'data',
-            ref: '#/components/schemas/SellerProductVariantPrice'
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'SellerInventoryResponse',
-    title: 'Seller Inventory Response',
-    type: 'object',
-    required: [
-        'success',
-        'message',
-        'data',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'success',
-            type: 'boolean',
-            example: true
-        ),
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'Product variant inventory retrieved successfully.'
-        ),
-        new OA\Property(
-            property: 'data',
-            ref: '#/components/schemas/SellerInventory'
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'SellerInventoryAdjustmentResponse',
-    title: 'Seller Inventory Adjustment Response',
-    type: 'object',
-    required: [
-        'success',
-        'message',
-        'data',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'success',
-            type: 'boolean',
-            example: true
-        ),
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'Inventory stock adjusted successfully.'
-        ),
-        new OA\Property(
-            property: 'data',
+    schemas: [
+        new OA\Schema(
+            schema: 'SellerProductResponse',
             type: 'object',
-            required: [
-                'inventory',
-                'movement',
-            ],
+            required: ['success', 'message', 'data'],
+            properties: [
+                new OA\Property(property: 'success', type: 'boolean', example: true),
+                new OA\Property(
+                    property: 'message',
+                    type: 'string',
+                    example: 'Seller product retrieved successfully.'
+                ),
+                new OA\Property(
+                    property: 'data',
+                    ref: '#/components/schemas/SellerProduct'
+                ),
+            ]
+        ),
+        new OA\Schema(
+            schema: 'SellerProductCollectionResponse',
+            type: 'object',
+            required: ['data', 'success', 'message'],
             properties: [
                 new OA\Property(
-                    property: 'inventory',
-                    ref: '#/components/schemas/SellerInventory'
+                    property: 'data',
+                    type: 'array',
+                    items: new OA\Items(
+                        ref: '#/components/schemas/SellerProduct'
+                    )
+                ),
+                new OA\Property(property: 'links', type: 'object', nullable: true),
+                new OA\Property(property: 'meta', type: 'object', nullable: true),
+                new OA\Property(property: 'success', type: 'boolean', example: true),
+                new OA\Property(
+                    property: 'message',
+                    type: 'string',
+                    example: 'Seller products retrieved successfully.'
+                ),
+            ]
+        ),
+        new OA\Schema(
+            schema: 'SellerProductVariantResponse',
+            type: 'object',
+            required: ['success', 'message', 'data'],
+            properties: [
+                new OA\Property(property: 'success', type: 'boolean', example: true),
+                new OA\Property(
+                    property: 'message',
+                    type: 'string',
+                    example: 'Product variant retrieved successfully.'
                 ),
                 new OA\Property(
-                    property: 'movement',
-                    ref: '#/components/schemas/SellerStockMovement'
+                    property: 'data',
+                    ref: '#/components/schemas/SellerProductVariant'
                 ),
+            ]
+        ),
+        new OA\Schema(
+            schema: 'SellerProductVariantCollectionResponse',
+            type: 'object',
+            required: ['data', 'success', 'message'],
+            properties: [
+                new OA\Property(
+                    property: 'data',
+                    type: 'array',
+                    items: new OA\Items(
+                        ref: '#/components/schemas/SellerProductVariant'
+                    )
+                ),
+                new OA\Property(property: 'links', type: 'object', nullable: true),
+                new OA\Property(property: 'meta', type: 'object', nullable: true),
+                new OA\Property(property: 'success', type: 'boolean', example: true),
+                new OA\Property(
+                    property: 'message',
+                    type: 'string',
+                    example: 'Product variants retrieved successfully.'
+                ),
+            ]
+        ),
+        new OA\Schema(
+            schema: 'SellerVariantPriceResponse',
+            type: 'object',
+            required: ['success', 'message', 'data'],
+            properties: [
+                new OA\Property(property: 'success', type: 'boolean', example: true),
+                new OA\Property(
+                    property: 'message',
+                    type: 'string',
+                    example: 'Product variant pricing retrieved successfully.'
+                ),
+                new OA\Property(
+                    property: 'data',
+                    ref: '#/components/schemas/SellerProductVariantPrice'
+                ),
+            ]
+        ),
+        new OA\Schema(
+            schema: 'SellerInventoryResponse',
+            type: 'object',
+            required: ['success', 'message', 'data'],
+            properties: [
+                new OA\Property(property: 'success', type: 'boolean', example: true),
+                new OA\Property(
+                    property: 'message',
+                    type: 'string',
+                    example: 'Product variant inventory retrieved successfully.'
+                ),
+                new OA\Property(
+                    property: 'data',
+                    ref: '#/components/schemas/SellerInventory'
+                ),
+            ]
+        ),
+        new OA\Schema(
+            schema: 'SellerInventoryAdjustmentResponse',
+            type: 'object',
+            required: ['success', 'message', 'data'],
+            properties: [
+                new OA\Property(property: 'success', type: 'boolean', example: true),
+                new OA\Property(
+                    property: 'message',
+                    type: 'string',
+                    example: 'Inventory stock adjusted successfully.'
+                ),
+                new OA\Property(
+                    property: 'data',
+                    type: 'object',
+                    required: ['inventory', 'movement'],
+                    properties: [
+                        new OA\Property(
+                            property: 'inventory',
+                            ref: '#/components/schemas/SellerInventory'
+                        ),
+                        new OA\Property(
+                            property: 'movement',
+                            ref: '#/components/schemas/SellerStockMovement'
+                        ),
+                    ]
+                ),
+            ]
+        ),
+        new OA\Schema(
+            schema: 'SellerStockMovementCollectionResponse',
+            type: 'object',
+            required: ['data', 'success', 'message'],
+            properties: [
+                new OA\Property(
+                    property: 'data',
+                    type: 'array',
+                    items: new OA\Items(
+                        ref: '#/components/schemas/SellerStockMovement'
+                    )
+                ),
+                new OA\Property(property: 'links', type: 'object', nullable: true),
+                new OA\Property(property: 'meta', type: 'object', nullable: true),
+                new OA\Property(property: 'success', type: 'boolean', example: true),
+                new OA\Property(
+                    property: 'message',
+                    type: 'string',
+                    example: 'Stock movement history retrieved successfully.'
+                ),
+            ]
+        ),
+        new OA\Schema(
+            schema: 'SellerProductMediaResponse',
+            type: 'object',
+            required: ['success', 'message', 'data'],
+            properties: [
+                new OA\Property(property: 'success', type: 'boolean', example: true),
+                new OA\Property(
+                    property: 'message',
+                    type: 'string',
+                    example: 'Product image uploaded successfully.'
+                ),
+                new OA\Property(
+                    property: 'data',
+                    ref: '#/components/schemas/SellerProductMedia'
+                ),
+            ]
+        ),
+        new OA\Schema(
+            schema: 'SellerProductMediaCollectionResponse',
+            type: 'object',
+            required: ['success', 'message', 'data'],
+            properties: [
+                new OA\Property(property: 'success', type: 'boolean', example: true),
+                new OA\Property(
+                    property: 'message',
+                    type: 'string',
+                    example: 'Product media retrieved successfully.'
+                ),
+                new OA\Property(
+                    property: 'data',
+                    type: 'array',
+                    items: new OA\Items(
+                        ref: '#/components/schemas/SellerProductMedia'
+                    )
+                ),
+            ]
+        ),
+        new OA\Schema(
+            schema: 'CatalogActionResponse',
+            type: 'object',
+            required: ['success', 'message'],
+            properties: [
+                new OA\Property(property: 'success', type: 'boolean', example: true),
+                new OA\Property(
+                    property: 'message',
+                    type: 'string',
+                    example: 'Operation completed successfully.'
+                ),
+                new OA\Property(property: 'data', nullable: true),
             ]
         ),
     ]
 )]
-#[OA\Schema(
-    schema: 'SellerStockMovementCollectionResponse',
-    title: 'Seller Stock Movement Collection Response',
-    type: 'object',
-    required: [
-        'data',
-        'success',
-        'message',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'data',
-            type: 'array',
-            items: new OA\Items(
-                ref: '#/components/schemas/SellerStockMovement'
-            )
-        ),
-        new OA\Property(
-            property: 'links',
-            type: 'object',
-            nullable: true
-        ),
-        new OA\Property(
-            property: 'meta',
-            type: 'object',
-            nullable: true
-        ),
-        new OA\Property(
-            property: 'success',
-            type: 'boolean',
-            example: true
-        ),
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'Stock movement history retrieved successfully.'
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'SellerProductMediaResponse',
-    title: 'Seller Product Media Response',
-    type: 'object',
-    required: [
-        'success',
-        'message',
-        'data',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'success',
-            type: 'boolean',
-            example: true
-        ),
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'Product image uploaded successfully.'
-        ),
-        new OA\Property(
-            property: 'data',
-            ref: '#/components/schemas/SellerProductMedia'
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'SellerProductMediaCollectionResponse',
-    title: 'Seller Product Media Collection Response',
-    type: 'object',
-    required: [
-        'success',
-        'message',
-        'data',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'success',
-            type: 'boolean',
-            example: true
-        ),
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'Product media retrieved successfully.'
-        ),
-        new OA\Property(
-            property: 'data',
-            type: 'array',
-            items: new OA\Items(
-                ref: '#/components/schemas/SellerProductMedia'
-            )
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'CatalogActionResponse',
-    title: 'Catalog Action Response',
-    type: 'object',
-    required: [
-        'success',
-        'message',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'success',
-            type: 'boolean',
-            example: true
-        ),
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'Operation completed successfully.'
-        ),
-        new OA\Property(
-            property: 'data',
-            nullable: true,
-            example: null
-        ),
-    ]
-)]
 
 /*
 |--------------------------------------------------------------------------
-| Seller product endpoints
+| Seller products
 |--------------------------------------------------------------------------
 */
 
@@ -444,31 +301,19 @@ use OpenApi\Attributes as OA;
     operationId: 'sellerProductsIndex',
     summary: 'List seller products',
     description: 'Returns paginated products belonging to the selected approved seller profile.',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Seller Products',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Seller Products'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
         new OA\Parameter(
             name: 'q',
-            description: 'Search by product name, slug, description, variant SKU or variant name.',
+            description: 'Search product name, slug, description, SKU or variant name.',
             in: 'query',
             required: false,
-            schema: new OA\Schema(
-                type: 'string',
-                maxLength: 255
-            )
+            schema: new OA\Schema(type: 'string', maxLength: 255)
         ),
         new OA\Parameter(
             name: 'status',
-            description: 'Filter by product moderation status.',
             in: 'query',
             required: false,
             schema: new OA\Schema(
@@ -485,25 +330,20 @@ use OpenApi\Attributes as OA;
         ),
         new OA\Parameter(
             name: 'category',
-            description: 'Filter by category public identifier.',
+            description: 'Category public identifier.',
             in: 'query',
             required: false,
-            schema: new OA\Schema(
-                type: 'string'
-            )
+            schema: new OA\Schema(type: 'string')
         ),
         new OA\Parameter(
             name: 'brand',
-            description: 'Filter by brand public identifier.',
+            description: 'Brand public identifier.',
             in: 'query',
             required: false,
-            schema: new OA\Schema(
-                type: 'string'
-            )
+            schema: new OA\Schema(type: 'string')
         ),
         new OA\Parameter(
             name: 'per_page',
-            description: 'Number of products returned per page.',
             in: 'query',
             required: false,
             schema: new OA\Schema(
@@ -531,14 +371,14 @@ use OpenApi\Attributes as OA;
         ),
         new OA\Response(
             response: 403,
-            description: 'Seller is not approved or the user cannot manage this seller.',
+            description: 'Permission denied.',
             content: new OA\JsonContent(
                 ref: '#/components/schemas/ForbiddenResponse'
             )
         ),
         new OA\Response(
             response: 422,
-            description: 'Invalid product filter.',
+            description: 'Invalid filters.',
             content: new OA\JsonContent(
                 ref: '#/components/schemas/ValidationErrorResponse'
             )
@@ -549,19 +389,10 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products',
     operationId: 'sellerProductsStore',
     summary: 'Create product draft',
-    description: 'Creates a new draft product for an approved seller.',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Seller Products',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Seller Products'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
     ],
     requestBody: new OA\RequestBody(
         required: true,
@@ -586,7 +417,7 @@ use OpenApi\Attributes as OA;
         ),
         new OA\Response(
             response: 403,
-            description: 'Seller is not approved or permission was denied.',
+            description: 'Permission denied.',
             content: new OA\JsonContent(
                 ref: '#/components/schemas/ForbiddenResponse'
             )
@@ -604,22 +435,11 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}',
     operationId: 'sellerProductsShow',
     summary: 'Show seller product',
-    description: 'Returns one product belonging to the selected seller profile.',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Seller Products',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Seller Products'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
     ],
     responses: [
         new OA\Response(
@@ -656,22 +476,11 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}',
     operationId: 'sellerProductsUpdatePut',
     summary: 'Replace seller product information',
-    description: 'Updates seller product information. Material changes may return an approved product to draft.',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Seller Products',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Seller Products'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
     ],
     requestBody: new OA\RequestBody(
         required: true,
@@ -721,22 +530,11 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}',
     operationId: 'sellerProductsUpdatePatch',
     summary: 'Update selected seller product fields',
-    description: 'Updates selected seller product fields.',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Seller Products',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Seller Products'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
     ],
     requestBody: new OA\RequestBody(
         required: true,
@@ -786,22 +584,11 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}',
     operationId: 'sellerProductsArchive',
     summary: 'Archive seller product',
-    description: 'Archives the seller product instead of permanently deleting it.',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Seller Products',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Seller Products'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
     ],
     responses: [
         new OA\Response(
@@ -846,21 +633,11 @@ use OpenApi\Attributes as OA;
     operationId: 'sellerProductsSubmitForReview',
     summary: 'Submit product for moderation',
     description: 'Submits a complete draft or rejected product for administrator review.',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Seller Products',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Seller Products'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
     ],
     responses: [
         new OA\Response(
@@ -900,7 +677,7 @@ use OpenApi\Attributes as OA;
         ),
         new OA\Response(
             response: 422,
-            description: 'Product is incomplete or not ready for moderation.',
+            description: 'Product is incomplete.',
             content: new OA\JsonContent(
                 ref: '#/components/schemas/ValidationErrorResponse'
             )
@@ -910,7 +687,7 @@ use OpenApi\Attributes as OA;
 
 /*
 |--------------------------------------------------------------------------
-| Product variant endpoints
+| Product variants
 |--------------------------------------------------------------------------
 */
 
@@ -918,46 +695,28 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}/variants',
     operationId: 'sellerProductVariantsIndex',
     summary: 'List product variants',
-    description: 'Returns variants belonging to one seller product.',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Product Variants',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Product Variants'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
         new OA\Parameter(
             name: 'q',
-            description: 'Search by SKU, barcode or variant name.',
             in: 'query',
             required: false,
-            schema: new OA\Schema(
-                type: 'string'
-            )
+            schema: new OA\Schema(type: 'string')
         ),
         new OA\Parameter(
             name: 'is_active',
             in: 'query',
             required: false,
-            schema: new OA\Schema(
-                type: 'boolean'
-            )
+            schema: new OA\Schema(type: 'boolean')
         ),
         new OA\Parameter(
             name: 'is_default',
             in: 'query',
             required: false,
-            schema: new OA\Schema(
-                type: 'boolean'
-            )
+            schema: new OA\Schema(type: 'boolean')
         ),
         new OA\Parameter(
             name: 'per_page',
@@ -1006,22 +765,11 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}/variants',
     operationId: 'sellerProductVariantsStore',
     summary: 'Create product variant',
-    description: 'Creates a variant and initializes its inventory record.',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Product Variants',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Product Variants'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
     ],
     requestBody: new OA\RequestBody(
         required: true,
@@ -1071,24 +819,12 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}/variants/{variant}',
     operationId: 'sellerProductVariantsShow',
     summary: 'Show product variant',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Product Variants',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Product Variants'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/VariantPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
+        new OA\Parameter(ref: '#/components/parameters/VariantPublicId'),
     ],
     responses: [
         new OA\Response(
@@ -1125,24 +861,12 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}/variants/{variant}',
     operationId: 'sellerProductVariantsUpdatePut',
     summary: 'Replace product variant information',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Product Variants',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Product Variants'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/VariantPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
+        new OA\Parameter(ref: '#/components/parameters/VariantPublicId'),
     ],
     requestBody: new OA\RequestBody(
         required: true,
@@ -1192,24 +916,12 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}/variants/{variant}',
     operationId: 'sellerProductVariantsUpdatePatch',
     summary: 'Update selected product variant fields',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Product Variants',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Product Variants'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/VariantPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
+        new OA\Parameter(ref: '#/components/parameters/VariantPublicId'),
     ],
     requestBody: new OA\RequestBody(
         required: true,
@@ -1259,25 +971,12 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}/variants/{variant}',
     operationId: 'sellerProductVariantsDestroy',
     summary: 'Delete product variant',
-    description: 'Soft-deletes a variant when it has no stock or stock movement history.',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Product Variants',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Product Variants'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/VariantPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
+        new OA\Parameter(ref: '#/components/parameters/VariantPublicId'),
     ],
     responses: [
         new OA\Response(
@@ -1310,7 +1009,7 @@ use OpenApi\Attributes as OA;
         ),
         new OA\Response(
             response: 409,
-            description: 'Variant cannot be deleted because it has stock or history.',
+            description: 'Variant has stock or movement history.',
             content: new OA\JsonContent(
                 ref: '#/components/schemas/ConflictResponse'
             )
@@ -1320,7 +1019,7 @@ use OpenApi\Attributes as OA;
 
 /*
 |--------------------------------------------------------------------------
-| Product variant pricing endpoints
+| Product pricing
 |--------------------------------------------------------------------------
 */
 
@@ -1328,24 +1027,12 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}/variants/{variant}/price',
     operationId: 'sellerVariantPriceShow',
     summary: 'Show variant pricing',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Product Pricing',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Product Pricing'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/VariantPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
+        new OA\Parameter(ref: '#/components/parameters/VariantPublicId'),
     ],
     responses: [
         new OA\Response(
@@ -1382,25 +1069,12 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}/variants/{variant}/price',
     operationId: 'sellerVariantPriceStore',
     summary: 'Create variant pricing',
-    description: 'Creates the single price record allowed for a product variant.',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Product Pricing',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Product Pricing'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/VariantPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
+        new OA\Parameter(ref: '#/components/parameters/VariantPublicId'),
     ],
     requestBody: new OA\RequestBody(
         required: true,
@@ -1457,24 +1131,12 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}/variants/{variant}/price',
     operationId: 'sellerVariantPriceUpdatePut',
     summary: 'Replace variant pricing',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Product Pricing',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Product Pricing'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/VariantPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
+        new OA\Parameter(ref: '#/components/parameters/VariantPublicId'),
     ],
     requestBody: new OA\RequestBody(
         required: true,
@@ -1524,24 +1186,12 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}/variants/{variant}/price',
     operationId: 'sellerVariantPriceUpdatePatch',
     summary: 'Update selected variant price fields',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Product Pricing',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Product Pricing'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/VariantPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
+        new OA\Parameter(ref: '#/components/parameters/VariantPublicId'),
     ],
     requestBody: new OA\RequestBody(
         required: true,
@@ -1590,7 +1240,7 @@ use OpenApi\Attributes as OA;
 
 /*
 |--------------------------------------------------------------------------
-| Product inventory endpoints
+| Product inventory
 |--------------------------------------------------------------------------
 */
 
@@ -1598,24 +1248,12 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}/variants/{variant}/inventory',
     operationId: 'sellerVariantInventoryShow',
     summary: 'Show variant inventory',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Product Inventory',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Product Inventory'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/VariantPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
+        new OA\Parameter(ref: '#/components/parameters/VariantPublicId'),
     ],
     responses: [
         new OA\Response(
@@ -1652,25 +1290,12 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}/variants/{variant}/inventory/adjust',
     operationId: 'sellerVariantInventoryAdjust',
     summary: 'Adjust variant stock',
-    description: 'Adds or removes physical stock and creates an immutable stock movement record.',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Product Inventory',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Product Inventory'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/VariantPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
+        new OA\Parameter(ref: '#/components/parameters/VariantPublicId'),
     ],
     requestBody: new OA\RequestBody(
         required: true,
@@ -1727,24 +1352,12 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}/variants/{variant}/inventory/settings',
     operationId: 'sellerVariantInventorySettingsPut',
     summary: 'Replace inventory settings',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Product Inventory',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Product Inventory'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/VariantPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
+        new OA\Parameter(ref: '#/components/parameters/VariantPublicId'),
     ],
     requestBody: new OA\RequestBody(
         required: true,
@@ -1783,7 +1396,7 @@ use OpenApi\Attributes as OA;
         ),
         new OA\Response(
             response: 409,
-            description: 'Inventory setting conflicts with reserved stock.',
+            description: 'Settings conflict with reserved stock.',
             content: new OA\JsonContent(
                 ref: '#/components/schemas/ConflictResponse'
             )
@@ -1801,24 +1414,12 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}/variants/{variant}/inventory/settings',
     operationId: 'sellerVariantInventorySettingsPatch',
     summary: 'Update selected inventory settings',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Product Inventory',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Product Inventory'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/VariantPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
+        new OA\Parameter(ref: '#/components/parameters/VariantPublicId'),
     ],
     requestBody: new OA\RequestBody(
         required: true,
@@ -1857,7 +1458,7 @@ use OpenApi\Attributes as OA;
         ),
         new OA\Response(
             response: 409,
-            description: 'Inventory setting conflicts with reserved stock.',
+            description: 'Settings conflict with reserved stock.',
             content: new OA\JsonContent(
                 ref: '#/components/schemas/ConflictResponse'
             )
@@ -1875,60 +1476,35 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}/variants/{variant}/inventory/movements',
     operationId: 'sellerVariantInventoryMovements',
     summary: 'List stock movement history',
-    description: 'Returns paginated immutable stock movement records for one product variant.',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Product Inventory',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Product Inventory'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/VariantPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
+        new OA\Parameter(ref: '#/components/parameters/VariantPublicId'),
         new OA\Parameter(
             name: 'movement_type',
             in: 'query',
             required: false,
-            schema: new OA\Schema(
-                type: 'string'
-            )
+            schema: new OA\Schema(type: 'string')
         ),
         new OA\Parameter(
             name: 'q',
-            description: 'Search movement ID, reason or reference.',
             in: 'query',
             required: false,
-            schema: new OA\Schema(
-                type: 'string',
-                maxLength: 150
-            )
+            schema: new OA\Schema(type: 'string', maxLength: 150)
         ),
         new OA\Parameter(
             name: 'date_from',
             in: 'query',
             required: false,
-            schema: new OA\Schema(
-                type: 'string',
-                format: 'date'
-            )
+            schema: new OA\Schema(type: 'string', format: 'date')
         ),
         new OA\Parameter(
             name: 'date_to',
             in: 'query',
             required: false,
-            schema: new OA\Schema(
-                type: 'string',
-                format: 'date'
-            )
+            schema: new OA\Schema(type: 'string', format: 'date')
         ),
         new OA\Parameter(
             name: 'per_page',
@@ -1983,7 +1559,7 @@ use OpenApi\Attributes as OA;
 
 /*
 |--------------------------------------------------------------------------
-| Product media endpoints
+| Product media
 |--------------------------------------------------------------------------
 */
 
@@ -1991,21 +1567,11 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}/media',
     operationId: 'sellerProductMediaIndex',
     summary: 'List product media',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Product Media',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Product Media'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
     ],
     responses: [
         new OA\Response(
@@ -2042,22 +1608,11 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}/media',
     operationId: 'sellerProductMediaStore',
     summary: 'Upload product image',
-    description: 'Uploads a JPG, JPEG, PNG or WebP image with a maximum size of 5 MB.',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Product Media',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Product Media'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
     ],
     requestBody: new OA\RequestBody(
         required: true,
@@ -2110,21 +1665,11 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}/media/reorder',
     operationId: 'sellerProductMediaReorder',
     summary: 'Reorder product images',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Product Media',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Product Media'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
     ],
     requestBody: new OA\RequestBody(
         required: true,
@@ -2181,24 +1726,12 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}/media/{media}/primary',
     operationId: 'sellerProductMediaSetPrimary',
     summary: 'Set primary product image',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Product Media',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Product Media'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductMediaPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductMediaPublicId'),
     ],
     responses: [
         new OA\Response(
@@ -2242,25 +1775,12 @@ use OpenApi\Attributes as OA;
     path: '/seller/profiles/{sellerProfile}/products/{product}/media/{media}',
     operationId: 'sellerProductMediaDestroy',
     summary: 'Delete product image',
-    description: 'Soft-deletes the media record and removes the stored image.',
-    security: [
-        [
-            'sanctum' => [],
-        ],
-    ],
-    tags: [
-        'Product Media',
-    ],
+    security: [['sanctum' => []]],
+    tags: ['Product Media'],
     parameters: [
-        new OA\Parameter(
-            ref: '#/components/parameters/SellerProfilePublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductPublicId'
-        ),
-        new OA\Parameter(
-            ref: '#/components/parameters/ProductMediaPublicId'
-        ),
+        new OA\Parameter(ref: '#/components/parameters/SellerProfilePublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductPublicId'),
+        new OA\Parameter(ref: '#/components/parameters/ProductMediaPublicId'),
     ],
     responses: [
         new OA\Response(
@@ -2300,10 +1820,9 @@ use OpenApi\Attributes as OA;
         ),
     ]
 )]
-
 final class SellerCatalogEndpoints
 {
     /*
-     * This class only contains OpenAPI endpoint attributes.
+     * OpenAPI-only attribute container.
      */
 }
