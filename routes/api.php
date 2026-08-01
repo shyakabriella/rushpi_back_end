@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\API\RegisterController;
 use App\Http\Controllers\API\V1\Admin\SellerVerificationController;
+use App\Http\Controllers\API\V1\Seller\SellerDocumentController;
 use App\Http\Controllers\API\V1\Seller\SellerProfileController;
 use App\Http\Controllers\API\V1\System\HealthController;
 use Illuminate\Support\Facades\Route;
@@ -12,6 +13,10 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 | Version 1 system routes
 |--------------------------------------------------------------------------
+|
+| These routes are public because monitoring services may need to check
+| whether the RushPi API and its dependencies are working correctly.
+|
 */
 
 Route::prefix('v1/system')
@@ -52,13 +57,12 @@ Route::controller(RegisterController::class)
 | Public category routes
 |--------------------------------------------------------------------------
 |
-| Temporarily disabled because this controller does not currently exist:
-|
-| App\Http\Controllers\API\Admin\CategoryController
-|
-| Restore the routes after CategoryController is implemented.
+| Temporarily disabled because CategoryController has not been created.
+| Restore this route when the public category controller is available.
 |
 */
+
+// use App\Http\Controllers\API\Admin\CategoryController;
 
 // Route::get(
 //     'categories',
@@ -69,6 +73,9 @@ Route::controller(RegisterController::class)
 |--------------------------------------------------------------------------
 | Authenticated routes
 |--------------------------------------------------------------------------
+|
+| Every route inside this group requires a valid Laravel Sanctum token.
+|
 */
 
 Route::middleware('auth:sanctum')
@@ -91,13 +98,23 @@ Route::middleware('auth:sanctum')
 
         /*
         |--------------------------------------------------------------------------
-        | Seller profile routes
+        | Seller routes
         |--------------------------------------------------------------------------
         */
 
         Route::prefix('seller')
             ->name('api.seller.')
             ->group(function (): void {
+                /*
+                |--------------------------------------------------------------------------
+                | Seller profile onboarding
+                |--------------------------------------------------------------------------
+                |
+                | These routes must not use seller.approved because a new seller
+                | needs them before their business is approved.
+                |
+                */
+
                 Route::get(
                     'profiles',
                     [SellerProfileController::class, 'index']
@@ -122,12 +139,123 @@ Route::middleware('auth:sanctum')
                     'profiles/{sellerProfile:public_id}',
                     [SellerProfileController::class, 'update']
                 )->name('profiles.patch');
+
+                /*
+                |--------------------------------------------------------------------------
+                | Seller application documents
+                |--------------------------------------------------------------------------
+                |
+                | Documents are stored privately. Access must always be checked
+                | inside SellerDocumentController.
+                |
+                */
+
+                Route::get(
+                    'profiles/{sellerProfile:public_id}'
+                    .'/applications/{sellerApplication:public_id}'
+                    .'/documents',
+                    [SellerDocumentController::class, 'index']
+                )->name('applications.documents.index');
+
+                Route::post(
+                    'profiles/{sellerProfile:public_id}'
+                    .'/applications/{sellerApplication:public_id}'
+                    .'/documents',
+                    [SellerDocumentController::class, 'store']
+                )
+                    ->middleware('throttle:10,1')
+                    ->name('applications.documents.store');
+
+                Route::get(
+                    'profiles/{sellerProfile:public_id}'
+                    .'/applications/{sellerApplication:public_id}'
+                    .'/documents/{sellerDocument:public_id}/download',
+                    [SellerDocumentController::class, 'download']
+                )->name('applications.documents.download');
+
+                Route::delete(
+                    'profiles/{sellerProfile:public_id}'
+                    .'/applications/{sellerApplication:public_id}'
+                    .'/documents/{sellerDocument:public_id}',
+                    [SellerDocumentController::class, 'destroy']
+                )->name('applications.documents.destroy');
+
+                /*
+                |--------------------------------------------------------------------------
+                | Submit seller application
+                |--------------------------------------------------------------------------
+                |
+                | Submission sends the seller application to the administrator
+                | verification workflow.
+                |
+                */
+
+                Route::post(
+                    'profiles/{sellerProfile:public_id}'
+                    .'/applications/{sellerApplication:public_id}'
+                    .'/submit',
+                    [SellerDocumentController::class, 'submit']
+                )
+                    ->middleware('throttle:5,1')
+                    ->name('applications.submit');
+
+                /*
+                |--------------------------------------------------------------------------
+                | Approved seller selling routes
+                |--------------------------------------------------------------------------
+                |
+                | Only approved sellers can access routes placed in this group.
+                |
+                | Add product, inventory, order, quotation, wallet and payout
+                | routes inside this group as they are implemented.
+                |
+                */
+
+                Route::prefix(
+                    'profiles/{sellerProfile:public_id}'
+                )
+                    ->middleware('seller.approved')
+                    ->name('selling.')
+                    ->group(function (): void {
+                        /*
+                         * Day 3 and later selling routes:
+                         *
+                         * Route::apiResource(
+                         *     'products',
+                         *     SellerProductController::class
+                         * );
+                         *
+                         * Route::get(
+                         *     'orders',
+                         *     [SellerOrderController::class, 'index']
+                         * )->name('orders.index');
+                         *
+                         * Route::get(
+                         *     'inventory',
+                         *     [SellerInventoryController::class, 'index']
+                         * )->name('inventory.index');
+                         *
+                         * Route::get(
+                         *     'wallet',
+                         *     [SellerWalletController::class, 'show']
+                         * )->name('wallet.show');
+                         *
+                         * Route::post(
+                         *     'payouts',
+                         *     [SellerPayoutController::class, 'store']
+                         * )->name('payouts.store');
+                         */
+                    });
             });
 
         /*
         |--------------------------------------------------------------------------
         | Administrator routes
         |--------------------------------------------------------------------------
+        |
+        | SellerVerificationController, Form Requests, policies or middleware
+        | must verify that the authenticated user is an administrator.
+        |
         */
 
         Route::prefix('admin')
@@ -150,26 +278,41 @@ Route::middleware('auth:sanctum')
                 )->name('seller-applications.show');
 
                 Route::post(
-                    'seller-applications/{sellerApplication:public_id}/start-review',
-                    [SellerVerificationController::class, 'startReview']
+                    'seller-applications/{sellerApplication:public_id}'
+                    .'/start-review',
+                    [
+                        SellerVerificationController::class,
+                        'startReview',
+                    ]
                 )->name('seller-applications.start-review');
 
                 Route::post(
-                    'seller-applications/{sellerApplication:public_id}/request-information',
+                    'seller-applications/{sellerApplication:public_id}'
+                    .'/request-information',
                     [
                         SellerVerificationController::class,
                         'requestInformation',
                     ]
-                )->name('seller-applications.request-information');
+                )->name(
+                    'seller-applications.request-information'
+                );
 
                 Route::post(
-                    'seller-applications/{sellerApplication:public_id}/approve',
-                    [SellerVerificationController::class, 'approve']
+                    'seller-applications/{sellerApplication:public_id}'
+                    .'/approve',
+                    [
+                        SellerVerificationController::class,
+                        'approve',
+                    ]
                 )->name('seller-applications.approve');
 
                 Route::post(
-                    'seller-applications/{sellerApplication:public_id}/reject',
-                    [SellerVerificationController::class, 'reject']
+                    'seller-applications/{sellerApplication:public_id}'
+                    .'/reject',
+                    [
+                        SellerVerificationController::class,
+                        'reject',
+                    ]
                 )->name('seller-applications.reject');
 
                 /*
@@ -185,7 +328,9 @@ Route::middleware('auth:sanctum')
                         SellerVerificationController::class,
                         'approveDocument',
                     ]
-                )->name('seller-applications.documents.approve');
+                )->name(
+                    'seller-applications.documents.approve'
+                );
 
                 Route::post(
                     'seller-applications/{sellerApplication:public_id}'
@@ -194,7 +339,9 @@ Route::middleware('auth:sanctum')
                         SellerVerificationController::class,
                         'rejectDocument',
                     ]
-                )->name('seller-applications.documents.reject');
+                )->name(
+                    'seller-applications.documents.reject'
+                );
 
                 Route::get(
                     'seller-applications/{sellerApplication:public_id}'
@@ -203,7 +350,9 @@ Route::middleware('auth:sanctum')
                         SellerVerificationController::class,
                         'downloadDocument',
                     ]
-                )->name('seller-applications.documents.download');
+                )->name(
+                    'seller-applications.documents.download'
+                );
 
                 /*
                 |--------------------------------------------------------------------------
@@ -212,8 +361,12 @@ Route::middleware('auth:sanctum')
                 */
 
                 Route::post(
-                    'seller-profiles/{sellerProfile:public_id}/suspend',
-                    [SellerVerificationController::class, 'suspend']
+                    'seller-profiles/{sellerProfile:public_id}'
+                    .'/suspend',
+                    [
+                        SellerVerificationController::class,
+                        'suspend',
+                    ]
                 )->name('seller-profiles.suspend');
 
                 /*
