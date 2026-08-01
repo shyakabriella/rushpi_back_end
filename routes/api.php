@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\API\RegisterController;
+use App\Http\Controllers\API\V1\Admin\CategoryController;
 use App\Http\Controllers\API\V1\Admin\SellerVerificationController;
 use App\Http\Controllers\API\V1\Seller\SellerDocumentController;
 use App\Http\Controllers\API\V1\Seller\SellerProfileController;
@@ -54,20 +55,13 @@ Route::controller(RegisterController::class)
 
 /*
 |--------------------------------------------------------------------------
-| Public category routes
+| Public catalog routes
 |--------------------------------------------------------------------------
 |
-| Temporarily disabled because CategoryController has not been created.
-| Restore this route when the public category controller is available.
+| Public category, brand and approved product routes will be added here
+| after their public controllers have been implemented.
 |
 */
-
-// use App\Http\Controllers\API\Admin\CategoryController;
-
-// Route::get(
-//     'categories',
-//     [CategoryController::class, 'publicIndex']
-// )->name('api.categories.index');
 
 /*
 |--------------------------------------------------------------------------
@@ -206,8 +200,8 @@ Route::middleware('auth:sanctum')
                 |
                 | Only approved sellers can access routes placed in this group.
                 |
-                | Add product, inventory, order, quotation, wallet and payout
-                | routes inside this group as they are implemented.
+                | Product, inventory, order, quotation, wallet and payout routes
+                | will be added here as their controllers are implemented.
                 |
                 */
 
@@ -253,14 +247,28 @@ Route::middleware('auth:sanctum')
         | Administrator routes
         |--------------------------------------------------------------------------
         |
-        | SellerVerificationController, Form Requests, policies or middleware
-        | must verify that the authenticated user is an administrator.
+        | Controllers, form requests, policies or middleware must verify that
+        | the authenticated user is an administrator or super administrator.
         |
         */
 
         Route::prefix('admin')
             ->name('api.admin.')
             ->group(function (): void {
+                /*
+                |--------------------------------------------------------------------------
+                | Product category administration
+                |--------------------------------------------------------------------------
+                |
+                | Categories are created and managed by administrators.
+                |
+                */
+
+                Route::apiResource(
+                    'categories',
+                    CategoryController::class
+                );
+
                 /*
                 |--------------------------------------------------------------------------
                 | Seller verification applications
@@ -368,19 +376,5 @@ Route::middleware('auth:sanctum')
                         'suspend',
                     ]
                 )->name('seller-profiles.suspend');
-
-                /*
-                |--------------------------------------------------------------------------
-                | Category administration
-                |--------------------------------------------------------------------------
-                |
-                | Temporarily disabled until CategoryController exists.
-                |
-                */
-
-                // Route::apiResource(
-                //     'categories',
-                //     CategoryController::class
-                // );
             });
     });
