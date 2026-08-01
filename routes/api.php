@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\API\RegisterController;
+use App\Http\Controllers\API\V1\Admin\BrandController;
 use App\Http\Controllers\API\V1\Admin\CategoryController;
 use App\Http\Controllers\API\V1\Admin\SellerVerificationController;
 use App\Http\Controllers\API\V1\Seller\SellerDocumentController;
@@ -178,10 +179,6 @@ Route::middleware('auth:sanctum')
                 |--------------------------------------------------------------------------
                 | Submit seller application
                 |--------------------------------------------------------------------------
-                |
-                | Submission sends the seller application to the administrator
-                | verification workflow.
-                |
                 */
 
                 Route::post(
@@ -198,10 +195,8 @@ Route::middleware('auth:sanctum')
                 | Approved seller selling routes
                 |--------------------------------------------------------------------------
                 |
-                | Only approved sellers can access routes placed in this group.
-                |
-                | Product, inventory, order, quotation, wallet and payout routes
-                | will be added here as their controllers are implemented.
+                | Product, variant, media, price and inventory routes will be
+                | added here as their controllers are implemented.
                 |
                 */
 
@@ -212,32 +207,12 @@ Route::middleware('auth:sanctum')
                     ->name('selling.')
                     ->group(function (): void {
                         /*
-                         * Day 3 and later selling routes:
+                         * Upcoming Day 3 routes:
                          *
                          * Route::apiResource(
                          *     'products',
                          *     SellerProductController::class
                          * );
-                         *
-                         * Route::get(
-                         *     'orders',
-                         *     [SellerOrderController::class, 'index']
-                         * )->name('orders.index');
-                         *
-                         * Route::get(
-                         *     'inventory',
-                         *     [SellerInventoryController::class, 'index']
-                         * )->name('inventory.index');
-                         *
-                         * Route::get(
-                         *     'wallet',
-                         *     [SellerWalletController::class, 'show']
-                         * )->name('wallet.show');
-                         *
-                         * Route::post(
-                         *     'payouts',
-                         *     [SellerPayoutController::class, 'store']
-                         * )->name('payouts.store');
                          */
                     });
             });
@@ -247,8 +222,8 @@ Route::middleware('auth:sanctum')
         | Administrator routes
         |--------------------------------------------------------------------------
         |
-        | Controllers, form requests, policies or middleware must verify that
-        | the authenticated user is an administrator or super administrator.
+        | Form requests and controllers verify that the authenticated user has
+        | the admin or superadmin role.
         |
         */
 
@@ -257,16 +232,18 @@ Route::middleware('auth:sanctum')
             ->group(function (): void {
                 /*
                 |--------------------------------------------------------------------------
-                | Product category administration
+                | Catalog administration
                 |--------------------------------------------------------------------------
-                |
-                | Categories are created and managed by administrators.
-                |
                 */
 
                 Route::apiResource(
                     'categories',
                     CategoryController::class
+                );
+
+                Route::apiResource(
+                    'brands',
+                    BrandController::class
                 );
 
                 /*
