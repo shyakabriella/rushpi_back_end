@@ -20,11 +20,20 @@ final class AdminSellerVerificationEndpoints
         parameters: [
             new OA\Parameter(
                 name: 'status',
-                description: 'Optional SellerApplicationStatus value.',
+                description: 'Optional seller application status.',
                 in: 'query',
                 required: false,
                 schema: new OA\Schema(
                     type: 'string',
+                    enum: [
+                        'draft',
+                        'submitted',
+                        'under_review',
+                        'more_information_required',
+                        'approved',
+                        'rejected',
+                        'suspended',
+                    ],
                     nullable: true
                 )
             ),
@@ -86,15 +95,24 @@ final class AdminSellerVerificationEndpoints
             ),
             new OA\Response(
                 response: 401,
-                description: 'Unauthenticated.'
+                description: 'Unauthenticated.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/UnauthenticatedResponse'
+                )
             ),
             new OA\Response(
                 response: 403,
-                description: 'Only administrators may access seller verification.'
+                description: 'Only administrators may access seller verification.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ForbiddenResponse'
+                )
             ),
             new OA\Response(
                 response: 422,
-                description: 'Invalid query parameters.'
+                description: 'Invalid query parameters.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ValidationErrorResponse'
+                )
             ),
         ]
     )]
@@ -117,26 +135,40 @@ final class AdminSellerVerificationEndpoints
                 description: 'Seller application public_id.',
                 in: 'path',
                 required: true,
-                schema: new OA\Schema(type: 'string'),
+                schema: new OA\Schema(
+                    type: 'string'
+                ),
                 example: 'application-public-id'
             ),
         ],
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'Application retrieved successfully.'
+                description: 'Application retrieved successfully.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/SellerApplicationResponse'
+                )
             ),
             new OA\Response(
                 response: 401,
-                description: 'Unauthenticated.'
+                description: 'Unauthenticated.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/UnauthenticatedResponse'
+                )
             ),
             new OA\Response(
                 response: 403,
-                description: 'Administrator permission required.'
+                description: 'Administrator permission required.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ForbiddenResponse'
+                )
             ),
             new OA\Response(
                 response: 404,
-                description: 'Seller application not found.'
+                description: 'Seller application not found.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/NotFoundResponse'
+                )
             ),
         ]
     )]
@@ -159,7 +191,9 @@ final class AdminSellerVerificationEndpoints
                 description: 'Seller application public_id.',
                 in: 'path',
                 required: true,
-                schema: new OA\Schema(type: 'string'),
+                schema: new OA\Schema(
+                    type: 'string'
+                ),
                 example: 'application-public-id'
             ),
         ],
@@ -168,32 +202,36 @@ final class AdminSellerVerificationEndpoints
                 response: 200,
                 description: 'Review started successfully.',
                 content: new OA\JsonContent(
-                    type: 'object',
-                    example: [
-                        'success' => true,
-                        'message' => 'Seller verification review started successfully.',
-                        'data' => [
-                            'public_id' => 'application-public-id',
-                            'status' => 'under_review',
-                        ],
-                    ]
+                    ref: '#/components/schemas/SellerApplicationResponse'
                 )
             ),
             new OA\Response(
                 response: 401,
-                description: 'Unauthenticated.'
+                description: 'Unauthenticated.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/UnauthenticatedResponse'
+                )
             ),
             new OA\Response(
                 response: 403,
-                description: 'Administrator permission required.'
+                description: 'Administrator permission required.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ForbiddenResponse'
+                )
             ),
             new OA\Response(
                 response: 404,
-                description: 'Seller application not found.'
+                description: 'Seller application not found.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/NotFoundResponse'
+                )
             ),
             new OA\Response(
                 response: 422,
-                description: 'The application is not in a status that permits review.'
+                description: 'The application is not in a status that permits review.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ValidationErrorResponse'
+                )
             ),
         ]
     )]
@@ -216,14 +254,18 @@ final class AdminSellerVerificationEndpoints
                 description: 'Seller application public_id.',
                 in: 'path',
                 required: true,
-                schema: new OA\Schema(type: 'string'),
+                schema: new OA\Schema(
+                    type: 'string'
+                ),
                 example: 'application-public-id'
             ),
         ],
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                required: ['message'],
+                required: [
+                    'message',
+                ],
                 properties: [
                     new OA\Property(
                         property: 'message',
@@ -245,27 +287,45 @@ final class AdminSellerVerificationEndpoints
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'Additional information requested successfully.'
+                description: 'Additional information requested successfully.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/SellerApplicationResponse'
+                )
             ),
             new OA\Response(
                 response: 401,
-                description: 'Unauthenticated.'
+                description: 'Unauthenticated.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/UnauthenticatedResponse'
+                )
             ),
             new OA\Response(
                 response: 403,
-                description: 'Administrator permission required.'
+                description: 'Administrator permission required.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ForbiddenResponse'
+                )
             ),
             new OA\Response(
                 response: 404,
-                description: 'Seller application not found.'
+                description: 'Seller application not found.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/NotFoundResponse'
+                )
             ),
             new OA\Response(
                 response: 409,
-                description: 'The application is assigned to another reviewer.'
+                description: 'The application is assigned to another reviewer.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ConflictResponse'
+                )
             ),
             new OA\Response(
                 response: 422,
-                description: 'Validation failed or the application status does not permit this action.'
+                description: 'Validation failed or the application status does not permit this action.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ValidationErrorResponse'
+                )
             ),
         ]
     )]
@@ -288,7 +348,9 @@ final class AdminSellerVerificationEndpoints
                 description: 'Seller application public_id.',
                 in: 'path',
                 required: true,
-                schema: new OA\Schema(type: 'string'),
+                schema: new OA\Schema(
+                    type: 'string'
+                ),
                 example: 'application-public-id'
             ),
         ],
@@ -309,27 +371,45 @@ final class AdminSellerVerificationEndpoints
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'Seller application approved successfully.'
+                description: 'Seller application approved successfully.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/SellerApplicationResponse'
+                )
             ),
             new OA\Response(
                 response: 401,
-                description: 'Unauthenticated.'
+                description: 'Unauthenticated.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/UnauthenticatedResponse'
+                )
             ),
             new OA\Response(
                 response: 403,
-                description: 'Administrator permission required.'
+                description: 'Administrator permission required.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ForbiddenResponse'
+                )
             ),
             new OA\Response(
                 response: 404,
-                description: 'Seller application not found.'
+                description: 'Seller application not found.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/NotFoundResponse'
+                )
             ),
             new OA\Response(
                 response: 409,
-                description: 'The application is assigned to another reviewer.'
+                description: 'The application is assigned to another reviewer.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ConflictResponse'
+                )
             ),
             new OA\Response(
                 response: 422,
-                description: 'Application status is invalid or required documents have not been approved.'
+                description: 'Application status is invalid or required documents have not been approved.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ValidationErrorResponse'
+                )
             ),
         ]
     )]
@@ -351,14 +431,18 @@ final class AdminSellerVerificationEndpoints
                 description: 'Seller application public_id.',
                 in: 'path',
                 required: true,
-                schema: new OA\Schema(type: 'string'),
+                schema: new OA\Schema(
+                    type: 'string'
+                ),
                 example: 'application-public-id'
             ),
         ],
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                required: ['reason'],
+                required: [
+                    'reason',
+                ],
                 properties: [
                     new OA\Property(
                         property: 'reason',
@@ -380,27 +464,45 @@ final class AdminSellerVerificationEndpoints
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'Seller application rejected successfully.'
+                description: 'Seller application rejected successfully.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/SellerApplicationResponse'
+                )
             ),
             new OA\Response(
                 response: 401,
-                description: 'Unauthenticated.'
+                description: 'Unauthenticated.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/UnauthenticatedResponse'
+                )
             ),
             new OA\Response(
                 response: 403,
-                description: 'Administrator permission required.'
+                description: 'Administrator permission required.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ForbiddenResponse'
+                )
             ),
             new OA\Response(
                 response: 404,
-                description: 'Seller application not found.'
+                description: 'Seller application not found.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/NotFoundResponse'
+                )
             ),
             new OA\Response(
                 response: 409,
-                description: 'The application is assigned to another reviewer.'
+                description: 'The application is assigned to another reviewer.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ConflictResponse'
+                )
             ),
             new OA\Response(
                 response: 422,
-                description: 'Validation failed or the application status does not permit rejection.'
+                description: 'Validation failed or the application status does not permit rejection.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ValidationErrorResponse'
+                )
             ),
         ]
     )]
@@ -423,7 +525,9 @@ final class AdminSellerVerificationEndpoints
                 description: 'Seller application public_id.',
                 in: 'path',
                 required: true,
-                schema: new OA\Schema(type: 'string'),
+                schema: new OA\Schema(
+                    type: 'string'
+                ),
                 example: 'application-public-id'
             ),
             new OA\Parameter(
@@ -431,7 +535,9 @@ final class AdminSellerVerificationEndpoints
                 description: 'Seller document public_id.',
                 in: 'path',
                 required: true,
-                schema: new OA\Schema(type: 'string'),
+                schema: new OA\Schema(
+                    type: 'string'
+                ),
                 example: 'document-public-id'
             ),
         ],
@@ -452,27 +558,45 @@ final class AdminSellerVerificationEndpoints
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'Seller document approved successfully.'
+                description: 'Seller document approved successfully.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/SellerDocumentResponse'
+                )
             ),
             new OA\Response(
                 response: 401,
-                description: 'Unauthenticated.'
+                description: 'Unauthenticated.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/UnauthenticatedResponse'
+                )
             ),
             new OA\Response(
                 response: 403,
-                description: 'Administrator permission required.'
+                description: 'Administrator permission required.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ForbiddenResponse'
+                )
             ),
             new OA\Response(
                 response: 404,
-                description: 'Application or document not found, or document does not belong to the application.'
+                description: 'Application or document not found.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/NotFoundResponse'
+                )
             ),
             new OA\Response(
                 response: 409,
-                description: 'The application is assigned to another reviewer.'
+                description: 'The application is assigned to another reviewer.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ConflictResponse'
+                )
             ),
             new OA\Response(
                 response: 422,
-                description: 'Document is not clean, is expired, or cannot currently be approved.'
+                description: 'Document is not clean, is expired or cannot currently be approved.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ValidationErrorResponse'
+                )
             ),
         ]
     )]
@@ -494,7 +618,9 @@ final class AdminSellerVerificationEndpoints
                 description: 'Seller application public_id.',
                 in: 'path',
                 required: true,
-                schema: new OA\Schema(type: 'string'),
+                schema: new OA\Schema(
+                    type: 'string'
+                ),
                 example: 'application-public-id'
             ),
             new OA\Parameter(
@@ -502,14 +628,18 @@ final class AdminSellerVerificationEndpoints
                 description: 'Seller document public_id.',
                 in: 'path',
                 required: true,
-                schema: new OA\Schema(type: 'string'),
+                schema: new OA\Schema(
+                    type: 'string'
+                ),
                 example: 'document-public-id'
             ),
         ],
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                required: ['reason'],
+                required: [
+                    'reason',
+                ],
                 properties: [
                     new OA\Property(
                         property: 'reason',
@@ -531,27 +661,45 @@ final class AdminSellerVerificationEndpoints
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'Seller document rejected successfully.'
+                description: 'Seller document rejected successfully.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/SellerDocumentResponse'
+                )
             ),
             new OA\Response(
                 response: 401,
-                description: 'Unauthenticated.'
+                description: 'Unauthenticated.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/UnauthenticatedResponse'
+                )
             ),
             new OA\Response(
                 response: 403,
-                description: 'Administrator permission required.'
+                description: 'Administrator permission required.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ForbiddenResponse'
+                )
             ),
             new OA\Response(
                 response: 404,
-                description: 'Application or document not found, or document does not belong to the application.'
+                description: 'Application or document not found.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/NotFoundResponse'
+                )
             ),
             new OA\Response(
                 response: 409,
-                description: 'The application is assigned to another reviewer.'
+                description: 'The application is assigned to another reviewer.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ConflictResponse'
+                )
             ),
             new OA\Response(
                 response: 422,
-                description: 'Validation failed or the document cannot currently be rejected.'
+                description: 'Validation failed or the document cannot currently be rejected.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ValidationErrorResponse'
+                )
             ),
         ]
     )]
@@ -574,7 +722,9 @@ final class AdminSellerVerificationEndpoints
                 description: 'Seller application public_id.',
                 in: 'path',
                 required: true,
-                schema: new OA\Schema(type: 'string'),
+                schema: new OA\Schema(
+                    type: 'string'
+                ),
                 example: 'application-public-id'
             ),
             new OA\Parameter(
@@ -582,7 +732,9 @@ final class AdminSellerVerificationEndpoints
                 description: 'Seller document public_id.',
                 in: 'path',
                 required: true,
-                schema: new OA\Schema(type: 'string'),
+                schema: new OA\Schema(
+                    type: 'string'
+                ),
                 example: 'document-public-id'
             ),
         ],
@@ -600,15 +752,24 @@ final class AdminSellerVerificationEndpoints
             ),
             new OA\Response(
                 response: 401,
-                description: 'Unauthenticated.'
+                description: 'Unauthenticated.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/UnauthenticatedResponse'
+                )
             ),
             new OA\Response(
                 response: 403,
-                description: 'Administrator permission required.'
+                description: 'Administrator permission required.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ForbiddenResponse'
+                )
             ),
             new OA\Response(
                 response: 404,
-                description: 'Application, document, or stored file not found.'
+                description: 'Application, document or stored file not found.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/NotFoundResponse'
+                )
             ),
         ]
     )]
@@ -631,14 +792,18 @@ final class AdminSellerVerificationEndpoints
                 description: 'Seller profile public_id.',
                 in: 'path',
                 required: true,
-                schema: new OA\Schema(type: 'string'),
+                schema: new OA\Schema(
+                    type: 'string'
+                ),
                 example: 'seller-profile-public-id'
             ),
         ],
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                required: ['reason'],
+                required: [
+                    'reason',
+                ],
                 properties: [
                     new OA\Property(
                         property: 'reason',
@@ -660,23 +825,38 @@ final class AdminSellerVerificationEndpoints
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'Seller suspended successfully.'
+                description: 'Seller suspended successfully.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/SellerProfileResponse'
+                )
             ),
             new OA\Response(
                 response: 401,
-                description: 'Unauthenticated.'
+                description: 'Unauthenticated.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/UnauthenticatedResponse'
+                )
             ),
             new OA\Response(
                 response: 403,
-                description: 'Administrator permission required.'
+                description: 'Administrator permission required.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ForbiddenResponse'
+                )
             ),
             new OA\Response(
                 response: 404,
-                description: 'Seller profile or approved application not found.'
+                description: 'Seller profile or approved application not found.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/NotFoundResponse'
+                )
             ),
             new OA\Response(
                 response: 422,
-                description: 'Validation failed or the seller is not currently approved.'
+                description: 'Validation failed or the seller is not currently approved.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ValidationErrorResponse'
+                )
             ),
         ]
     )]
