@@ -6,12 +6,12 @@
         "contact": {
             "name": "RushPi Backend Team"
         },
-        "version": "0.1.0"
+        "version": "1.0.0"
     },
     "servers": [
         {
-            "url": "/api/v1",
-            "description": "RushPi API Version 1"
+            "url": "/api",
+            "description": "RushPi production API"
         }
     ],
     "paths": {
@@ -95,13 +95,1541 @@
                     }
                 }
             }
+        },
+        "/admin/seller-applications": {
+            "get": {
+                "tags": [
+                    "Seller Verification Admin"
+                ],
+                "summary": "List seller verification applications",
+                "description": "Returns paginated seller applications. Only administrators may access this endpoint.",
+                "operationId": "adminListSellerApplications",
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "description": "Optional SellerApplicationStatus value.",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "nullable": true
+                        }
+                    },
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "description": "Search by legal business name, trading name, registration number or tax identification number.",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "nullable": true,
+                            "maxLength": 100
+                        },
+                        "example": "RushPi Electronics"
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "description": "Number of records returned per page.",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 20,
+                            "maximum": 100,
+                            "minimum": 1
+                        },
+                        "example": 20
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Applications retrieved successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                },
+                                "example": {
+                                    "success": true,
+                                    "message": "Seller verification applications retrieved successfully.",
+                                    "data": {
+                                        "current_page": 1,
+                                        "data": [
+                                            {
+                                                "public_id": "application-public-id",
+                                                "version": 1,
+                                                "status": "submitted",
+                                                "documents_count": 2,
+                                                "seller_profile": {
+                                                    "public_id": "seller-public-id",
+                                                    "legal_business_name": "RushPi Electronics Ltd",
+                                                    "trading_name": "RushPi Electronics"
+                                                }
+                                            }
+                                        ],
+                                        "per_page": 20,
+                                        "total": 1
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated."
+                    },
+                    "403": {
+                        "description": "Only administrators may access seller verification."
+                    },
+                    "422": {
+                        "description": "Invalid query parameters."
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/admin/seller-applications/{sellerApplication}": {
+            "get": {
+                "tags": [
+                    "Seller Verification Admin"
+                ],
+                "summary": "Show one seller verification application",
+                "description": "Returns a complete application with seller profile, addresses, members, documents and review history.",
+                "operationId": "adminShowSellerApplication",
+                "parameters": [
+                    {
+                        "name": "sellerApplication",
+                        "in": "path",
+                        "description": "Seller application public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "application-public-id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Application retrieved successfully."
+                    },
+                    "401": {
+                        "description": "Unauthenticated."
+                    },
+                    "403": {
+                        "description": "Administrator permission required."
+                    },
+                    "404": {
+                        "description": "Seller application not found."
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/admin/seller-applications/{sellerApplication}/start-review": {
+            "post": {
+                "tags": [
+                    "Seller Verification Admin"
+                ],
+                "summary": "Start reviewing a seller application",
+                "description": "Moves a submitted application to under review and assigns the authenticated administrator as reviewer.",
+                "operationId": "adminStartSellerApplicationReview",
+                "parameters": [
+                    {
+                        "name": "sellerApplication",
+                        "in": "path",
+                        "description": "Seller application public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "application-public-id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Review started successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                },
+                                "example": {
+                                    "success": true,
+                                    "message": "Seller verification review started successfully.",
+                                    "data": {
+                                        "public_id": "application-public-id",
+                                        "status": "under_review"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated."
+                    },
+                    "403": {
+                        "description": "Administrator permission required."
+                    },
+                    "404": {
+                        "description": "Seller application not found."
+                    },
+                    "422": {
+                        "description": "The application is not in a status that permits review."
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/admin/seller-applications/{sellerApplication}/request-information": {
+            "post": {
+                "tags": [
+                    "Seller Verification Admin"
+                ],
+                "summary": "Request additional information from a seller",
+                "description": "Returns the application to the seller for corrections or additional information.",
+                "operationId": "adminRequestSellerInformation",
+                "parameters": [
+                    {
+                        "name": "sellerApplication",
+                        "in": "path",
+                        "description": "Seller application public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "application-public-id"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "message"
+                                ],
+                                "properties": {
+                                    "message": {
+                                        "type": "string",
+                                        "example": "Please upload a clearer business registration certificate.",
+                                        "maxLength": 3000,
+                                        "minLength": 10
+                                    },
+                                    "internal_notes": {
+                                        "type": "string",
+                                        "example": "The current scan is not readable.",
+                                        "nullable": true,
+                                        "maxLength": 2000
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Additional information requested successfully."
+                    },
+                    "401": {
+                        "description": "Unauthenticated."
+                    },
+                    "403": {
+                        "description": "Administrator permission required."
+                    },
+                    "404": {
+                        "description": "Seller application not found."
+                    },
+                    "409": {
+                        "description": "The application is assigned to another reviewer."
+                    },
+                    "422": {
+                        "description": "Validation failed or the application status does not permit this action."
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/admin/seller-applications/{sellerApplication}/approve": {
+            "post": {
+                "tags": [
+                    "Seller Verification Admin"
+                ],
+                "summary": "Approve a seller application",
+                "description": "Approves the application after all required documents have been approved and are not expired.",
+                "operationId": "adminApproveSellerApplication",
+                "parameters": [
+                    {
+                        "name": "sellerApplication",
+                        "in": "path",
+                        "description": "Seller application public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "application-public-id"
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "internal_notes": {
+                                        "type": "string",
+                                        "example": "All required documents were verified.",
+                                        "nullable": true,
+                                        "maxLength": 2000
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Seller application approved successfully."
+                    },
+                    "401": {
+                        "description": "Unauthenticated."
+                    },
+                    "403": {
+                        "description": "Administrator permission required."
+                    },
+                    "404": {
+                        "description": "Seller application not found."
+                    },
+                    "409": {
+                        "description": "The application is assigned to another reviewer."
+                    },
+                    "422": {
+                        "description": "Application status is invalid or required documents have not been approved."
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/admin/seller-applications/{sellerApplication}/reject": {
+            "post": {
+                "tags": [
+                    "Seller Verification Admin"
+                ],
+                "summary": "Reject a seller application",
+                "operationId": "adminRejectSellerApplication",
+                "parameters": [
+                    {
+                        "name": "sellerApplication",
+                        "in": "path",
+                        "description": "Seller application public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "application-public-id"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "reason"
+                                ],
+                                "properties": {
+                                    "reason": {
+                                        "type": "string",
+                                        "example": "The submitted registration information could not be verified.",
+                                        "maxLength": 3000,
+                                        "minLength": 10
+                                    },
+                                    "internal_notes": {
+                                        "type": "string",
+                                        "example": "Verification was attempted using the official registry.",
+                                        "nullable": true,
+                                        "maxLength": 2000
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Seller application rejected successfully."
+                    },
+                    "401": {
+                        "description": "Unauthenticated."
+                    },
+                    "403": {
+                        "description": "Administrator permission required."
+                    },
+                    "404": {
+                        "description": "Seller application not found."
+                    },
+                    "409": {
+                        "description": "The application is assigned to another reviewer."
+                    },
+                    "422": {
+                        "description": "Validation failed or the application status does not permit rejection."
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/admin/seller-applications/{sellerApplication}/documents/{sellerDocument}/approve": {
+            "post": {
+                "tags": [
+                    "Seller Verification Admin"
+                ],
+                "summary": "Approve a seller verification document",
+                "description": "Only clean, successfully scanned and unexpired documents may be approved.",
+                "operationId": "adminApproveSellerDocument",
+                "parameters": [
+                    {
+                        "name": "sellerApplication",
+                        "in": "path",
+                        "description": "Seller application public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "application-public-id"
+                    },
+                    {
+                        "name": "sellerDocument",
+                        "in": "path",
+                        "description": "Seller document public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "document-public-id"
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "internal_notes": {
+                                        "type": "string",
+                                        "example": "Document verified successfully.",
+                                        "nullable": true,
+                                        "maxLength": 2000
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Seller document approved successfully."
+                    },
+                    "401": {
+                        "description": "Unauthenticated."
+                    },
+                    "403": {
+                        "description": "Administrator permission required."
+                    },
+                    "404": {
+                        "description": "Application or document not found, or document does not belong to the application."
+                    },
+                    "409": {
+                        "description": "The application is assigned to another reviewer."
+                    },
+                    "422": {
+                        "description": "Document is not clean, is expired, or cannot currently be approved."
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/admin/seller-applications/{sellerApplication}/documents/{sellerDocument}/reject": {
+            "post": {
+                "tags": [
+                    "Seller Verification Admin"
+                ],
+                "summary": "Reject a seller verification document",
+                "operationId": "adminRejectSellerDocument",
+                "parameters": [
+                    {
+                        "name": "sellerApplication",
+                        "in": "path",
+                        "description": "Seller application public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "application-public-id"
+                    },
+                    {
+                        "name": "sellerDocument",
+                        "in": "path",
+                        "description": "Seller document public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "document-public-id"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "reason"
+                                ],
+                                "properties": {
+                                    "reason": {
+                                        "type": "string",
+                                        "example": "The uploaded document is not readable.",
+                                        "maxLength": 2000,
+                                        "minLength": 5
+                                    },
+                                    "internal_notes": {
+                                        "type": "string",
+                                        "example": "Seller should upload a higher-resolution scan.",
+                                        "nullable": true,
+                                        "maxLength": 2000
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Seller document rejected successfully."
+                    },
+                    "401": {
+                        "description": "Unauthenticated."
+                    },
+                    "403": {
+                        "description": "Administrator permission required."
+                    },
+                    "404": {
+                        "description": "Application or document not found, or document does not belong to the application."
+                    },
+                    "409": {
+                        "description": "The application is assigned to another reviewer."
+                    },
+                    "422": {
+                        "description": "Validation failed or the document cannot currently be rejected."
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/admin/seller-applications/{sellerApplication}/documents/{sellerDocument}/download": {
+            "get": {
+                "tags": [
+                    "Seller Verification Admin"
+                ],
+                "summary": "Download a private seller document",
+                "description": "Downloads the private document and records an access-log entry.",
+                "operationId": "adminDownloadSellerDocument",
+                "parameters": [
+                    {
+                        "name": "sellerApplication",
+                        "in": "path",
+                        "description": "Seller application public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "application-public-id"
+                    },
+                    {
+                        "name": "sellerDocument",
+                        "in": "path",
+                        "description": "Seller document public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "document-public-id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Private seller document.",
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated."
+                    },
+                    "403": {
+                        "description": "Administrator permission required."
+                    },
+                    "404": {
+                        "description": "Application, document, or stored file not found."
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/admin/seller-profiles/{sellerProfile}/suspend": {
+            "post": {
+                "tags": [
+                    "Seller Verification Admin"
+                ],
+                "summary": "Suspend an approved seller",
+                "description": "Suspends an approved seller profile and its approved verification application.",
+                "operationId": "adminSuspendSellerProfile",
+                "parameters": [
+                    {
+                        "name": "sellerProfile",
+                        "in": "path",
+                        "description": "Seller profile public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "seller-profile-public-id"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "reason"
+                                ],
+                                "properties": {
+                                    "reason": {
+                                        "type": "string",
+                                        "example": "The seller account was suspended following a compliance investigation.",
+                                        "maxLength": 3000,
+                                        "minLength": 10
+                                    },
+                                    "internal_notes": {
+                                        "type": "string",
+                                        "example": "Suspension approved by the compliance administrator.",
+                                        "nullable": true,
+                                        "maxLength": 2000
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Seller suspended successfully."
+                    },
+                    "401": {
+                        "description": "Unauthenticated."
+                    },
+                    "403": {
+                        "description": "Administrator permission required."
+                    },
+                    "404": {
+                        "description": "Seller profile or approved application not found."
+                    },
+                    "422": {
+                        "description": "Validation failed or the seller is not currently approved."
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/register": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Register a customer account",
+                "description": "Creates an active customer account and returns a Laravel Sanctum token.",
+                "operationId": "registerCustomer",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "name",
+                                    "email",
+                                    "password",
+                                    "c_password"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "Guillaume Karangwa",
+                                        "maxLength": 255
+                                    },
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "example": "guillaume@example.com",
+                                        "maxLength": 255
+                                    },
+                                    "phone": {
+                                        "type": "string",
+                                        "example": "+250788000000",
+                                        "nullable": true,
+                                        "maxLength": 30
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "format": "password",
+                                        "example": "StrongPassword123!",
+                                        "minLength": 6
+                                    },
+                                    "c_password": {
+                                        "type": "string",
+                                        "format": "password",
+                                        "example": "StrongPassword123!"
+                                    },
+                                    "address": {
+                                        "type": "string",
+                                        "example": "Kigali, Rwanda",
+                                        "nullable": true,
+                                        "maxLength": 1000
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Customer registered successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AuthSuccessResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/login": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Log in to RushPi",
+                "description": "Authenticates a user and returns a Laravel Sanctum token.",
+                "operationId": "loginUser",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "email",
+                                    "password"
+                                ],
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "example": "guillaume@example.com"
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "format": "password",
+                                        "example": "StrongPassword123!"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "User logged in successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AuthSuccessResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid credentials or inactive account."
+                    },
+                    "422": {
+                        "description": "Validation failed.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/me": {
+            "get": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Get the authenticated user",
+                "operationId": "getAuthenticatedUser",
+                "responses": {
+                    "200": {
+                        "description": "Authenticated user retrieved successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserProfileResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthenticatedResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/logout": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Log out the authenticated user",
+                "description": "Deletes the Laravel Sanctum token used by the current request.",
+                "operationId": "logoutUser",
+                "responses": {
+                    "200": {
+                        "description": "User logged out successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                },
+                                "example": {
+                                    "success": true,
+                                    "data": [],
+                                    "message": "User logged out successfully."
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthenticatedResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/seller/profiles": {
+            "get": {
+                "tags": [
+                    "Seller Profiles"
+                ],
+                "summary": "List the authenticated user’s seller profiles",
+                "operationId": "listSellerProfiles",
+                "responses": {
+                    "200": {
+                        "description": "Seller profiles retrieved successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Seller profiles retrieved successfully."
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/SellerProfile"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthenticatedResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Seller Profiles"
+                ],
+                "summary": "Create a seller business profile",
+                "description": "Creates a draft seller profile and assigns the authenticated user as its owner.",
+                "operationId": "createSellerProfile",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            },
+                            "example": {
+                                "legal_business_name": "RushPi Electronics Limited",
+                                "trading_name": "RushPi Electronics",
+                                "registration_number": "RC123456789",
+                                "tax_identification_number": "TIN987654321",
+                                "business_email": "seller@example.com",
+                                "business_phone": "+250788000000",
+                                "address": {
+                                    "country": "Rwanda",
+                                    "city": "Kigali",
+                                    "address_line_1": "KG 7 Avenue"
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Seller profile created successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Seller business profile created successfully."
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/SellerProfile"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated."
+                    },
+                    "422": {
+                        "description": "Validation failed.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Seller profile could not be created.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SellerErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/seller/profiles/{sellerProfile}": {
+            "get": {
+                "tags": [
+                    "Seller Profiles"
+                ],
+                "summary": "Get one seller profile",
+                "operationId": "showSellerProfile",
+                "parameters": [
+                    {
+                        "name": "sellerProfile",
+                        "in": "path",
+                        "description": "Seller profile public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "01JZ8T5M8P7BZW2K4X9D6QYH3A"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Seller profile retrieved successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Seller profile retrieved successfully."
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/SellerProfile"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated."
+                    },
+                    "403": {
+                        "description": "The user does not belong to this seller."
+                    },
+                    "404": {
+                        "description": "Seller profile not found."
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "put": {
+                "tags": [
+                    "Seller Profiles"
+                ],
+                "summary": "Update a seller profile using PUT",
+                "operationId": "updateSellerProfileWithPut",
+                "parameters": [
+                    {
+                        "name": "sellerProfile",
+                        "in": "path",
+                        "description": "Seller profile public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "01JZ8T5M8P7BZW2K4X9D6QYH3A"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            },
+                            "example": {
+                                "trading_name": "RushPi Technology",
+                                "business_email": "contact@example.com",
+                                "business_phone": "+250788111111"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Seller profile updated successfully."
+                    },
+                    "401": {
+                        "description": "Unauthenticated."
+                    },
+                    "403": {
+                        "description": "Only the seller owner may update the profile."
+                    },
+                    "404": {
+                        "description": "Seller profile not found."
+                    },
+                    "422": {
+                        "description": "Validation failed or profile status prevents updating."
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "Seller Profiles"
+                ],
+                "summary": "Partially update a seller profile",
+                "operationId": "updateSellerProfileWithPatch",
+                "parameters": [
+                    {
+                        "name": "sellerProfile",
+                        "in": "path",
+                        "description": "Seller profile public_id.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "01JZ8T5M8P7BZW2K4X9D6QYH3A"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            },
+                            "example": {
+                                "business_phone": "+250788222222"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Seller profile updated successfully."
+                    },
+                    "401": {
+                        "description": "Unauthenticated."
+                    },
+                    "403": {
+                        "description": "Only the seller owner may update the profile."
+                    },
+                    "404": {
+                        "description": "Seller profile not found."
+                    },
+                    "422": {
+                        "description": "Validation failed or profile status prevents updating."
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
         }
     },
     "components": {
+        "schemas": {
+            "User": {
+                "title": "User",
+                "required": [
+                    "id",
+                    "name",
+                    "email",
+                    "role",
+                    "status"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 1
+                    },
+                    "name": {
+                        "type": "string",
+                        "example": "Guillaume Karangwa",
+                        "maxLength": 255
+                    },
+                    "email": {
+                        "type": "string",
+                        "format": "email",
+                        "example": "guillaume@example.com",
+                        "maxLength": 255
+                    },
+                    "phone": {
+                        "type": "string",
+                        "example": "+250788000000",
+                        "nullable": true,
+                        "maxLength": 30
+                    },
+                    "role": {
+                        "type": "string",
+                        "example": "customer",
+                        "enum": [
+                            "superadmin",
+                            "admin",
+                            "customer",
+                            "seller_owner",
+                            "seller_staff",
+                            "delivery_agent"
+                        ]
+                    },
+                    "status": {
+                        "type": "string",
+                        "example": "active",
+                        "enum": [
+                            "active",
+                            "inactive",
+                            "blocked"
+                        ]
+                    },
+                    "address": {
+                        "type": "string",
+                        "example": "Kigali, Rwanda",
+                        "nullable": true,
+                        "maxLength": 1000
+                    }
+                },
+                "type": "object"
+            },
+            "AuthData": {
+                "title": "Authentication data",
+                "required": [
+                    "token",
+                    "user"
+                ],
+                "properties": {
+                    "token": {
+                        "description": "Laravel Sanctum access token.",
+                        "type": "string",
+                        "example": "1|long-sanctum-access-token"
+                    },
+                    "user": {
+                        "$ref": "#/components/schemas/User"
+                    }
+                },
+                "type": "object"
+            },
+            "AuthSuccessResponse": {
+                "title": "Authentication success response",
+                "required": [
+                    "success",
+                    "data",
+                    "message"
+                ],
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/AuthData"
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "User logged in successfully."
+                    }
+                },
+                "type": "object"
+            },
+            "UserProfileResponse": {
+                "title": "Authenticated user response",
+                "required": [
+                    "success",
+                    "data",
+                    "message"
+                ],
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "data": {
+                        "required": [
+                            "user"
+                        ],
+                        "properties": {
+                            "user": {
+                                "$ref": "#/components/schemas/User"
+                            }
+                        },
+                        "type": "object"
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "User profile fetched successfully."
+                    }
+                },
+                "type": "object"
+            },
+            "SellerProfile": {
+                "title": "Seller profile",
+                "required": [
+                    "public_id",
+                    "status"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 1
+                    },
+                    "public_id": {
+                        "description": "Public seller profile identifier used in API routes.",
+                        "type": "string",
+                        "example": "01JZ8T5M8P7BZW2K4X9D6QYH3A"
+                    },
+                    "legal_business_name": {
+                        "type": "string",
+                        "example": "RushPi Electronics Limited"
+                    },
+                    "trading_name": {
+                        "type": "string",
+                        "example": "RushPi Electronics",
+                        "nullable": true
+                    },
+                    "registration_number": {
+                        "type": "string",
+                        "example": "RC123456789",
+                        "nullable": true
+                    },
+                    "tax_identification_number": {
+                        "type": "string",
+                        "example": "TIN987654321",
+                        "nullable": true
+                    },
+                    "business_email": {
+                        "type": "string",
+                        "format": "email",
+                        "example": "seller@example.com",
+                        "nullable": true
+                    },
+                    "business_phone": {
+                        "type": "string",
+                        "example": "+250788000000",
+                        "nullable": true
+                    },
+                    "status": {
+                        "type": "string",
+                        "example": "draft",
+                        "enum": [
+                            "draft",
+                            "pending_verification",
+                            "approved",
+                            "rejected",
+                            "suspended"
+                        ]
+                    },
+                    "approved_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "suspended_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "suspension_reason": {
+                        "type": "string",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "addresses": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "members": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "applications": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-08-01T00:00:00.000000Z",
+                        "nullable": true
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-08-01T00:00:00.000000Z",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "ValidationErrorResponse": {
+                "title": "Validation error response",
+                "required": [
+                    "success",
+                    "message",
+                    "data"
+                ],
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "Validation Error."
+                    },
+                    "data": {
+                        "type": "object",
+                        "example": {
+                            "email": [
+                                "The email field is required."
+                            ]
+                        }
+                    }
+                },
+                "type": "object"
+            },
+            "UnauthenticatedResponse": {
+                "title": "Unauthenticated response",
+                "required": [
+                    "message"
+                ],
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "example": "Unauthenticated."
+                    }
+                },
+                "type": "object"
+            },
+            "SellerErrorResponse": {
+                "title": "Seller operation error response",
+                "required": [
+                    "success",
+                    "message"
+                ],
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "The seller business profile could not be created."
+                    },
+                    "data": {
+                        "example": null,
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            }
+        },
         "securitySchemes": {
             "sanctum": {
                 "type": "http",
-                "description": "Enter the authentication token without adding the word Bearer.",
+                "description": "Enter only the Sanctum token. Swagger adds the Bearer prefix automatically.",
                 "bearerFormat": "Bearer token",
                 "scheme": "bearer"
             }
@@ -110,7 +1638,19 @@
     "tags": [
         {
             "name": "System",
-            "description": "Application health and infrastructure-readiness endpoints."
+            "description": "Application health and infrastructure readiness endpoints."
+        },
+        {
+            "name": "Authentication",
+            "description": "Registration, login, logout and authenticated-user endpoints."
+        },
+        {
+            "name": "Seller Profiles",
+            "description": "Seller business profile creation and management endpoints."
+        },
+        {
+            "name": "Seller Verification Admin",
+            "description": "Administrator endpoints for reviewing and deciding seller verification applications."
         }
     ]
 }

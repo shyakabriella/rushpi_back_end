@@ -1,0 +1,174 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\OpenApi;
+
+use OpenApi\Attributes as OA;
+
+#[OA\Info(
+    version: '1.0.0',
+    title: 'RushPi Marketplace API',
+    description: 'Backend API contract for the RushPi verified electronics marketplace.',
+    contact: new OA\Contact(
+        name: 'RushPi Backend Team'
+    )
+)]
+#[OA\Server(
+    url: '/api',
+    description: 'RushPi production API'
+)]
+#[OA\SecurityScheme(
+    securityScheme: 'sanctum',
+    type: 'http',
+    scheme: 'bearer',
+    bearerFormat: 'Bearer token',
+    description: 'Enter only the Sanctum token. Swagger adds the Bearer prefix automatically.'
+)]
+#[OA\Tag(
+    name: 'System',
+    description: 'Application health and infrastructure readiness.'
+)]
+#[OA\Tag(
+    name: 'Authentication',
+    description: 'Registration, login, logout and authenticated-user endpoints.'
+)]
+#[OA\Tag(
+    name: 'Seller Profiles',
+    description: 'Seller business profile management endpoints.'
+)]
+#[OA\Schema(
+    schema: 'User',
+    type: 'object',
+    required: [
+        'id',
+        'name',
+        'email',
+        'role',
+        'status',
+    ],
+    properties: [
+        new OA\Property(
+            property: 'id',
+            type: 'integer',
+            format: 'int64',
+            example: 1
+        ),
+        new OA\Property(
+            property: 'name',
+            type: 'string',
+            example: 'Guillaume Karangwa'
+        ),
+        new OA\Property(
+            property: 'email',
+            type: 'string',
+            format: 'email',
+            example: 'guillaume@example.com'
+        ),
+        new OA\Property(
+            property: 'phone',
+            type: 'string',
+            nullable: true,
+            example: '+250788000000'
+        ),
+        new OA\Property(
+            property: 'role',
+            type: 'string',
+            example: 'customer'
+        ),
+        new OA\Property(
+            property: 'status',
+            type: 'string',
+            example: 'active'
+        ),
+        new OA\Property(
+            property: 'address',
+            type: 'string',
+            nullable: true,
+            example: 'Kigali, Rwanda'
+        ),
+    ]
+)]
+#[OA\Schema(
+    schema: 'AuthData',
+    type: 'object',
+    required: [
+        'token',
+        'user',
+    ],
+    properties: [
+        new OA\Property(
+            property: 'token',
+            type: 'string',
+            example: '1|long-sanctum-token'
+        ),
+        new OA\Property(
+            property: 'user',
+            ref: '#/components/schemas/User'
+        ),
+    ]
+)]
+#[OA\Schema(
+    schema: 'SellerProfile',
+    type: 'object',
+    properties: [
+        new OA\Property(
+            property: 'id',
+            type: 'integer',
+            format: 'int64',
+            example: 1
+        ),
+        new OA\Property(
+            property: 'status',
+            type: 'string',
+            example: 'draft'
+        ),
+        new OA\Property(
+            property: 'created_at',
+            type: 'string',
+            format: 'date-time',
+            example: '2026-08-01T00:00:00.000000Z'
+        ),
+        new OA\Property(
+            property: 'updated_at',
+            type: 'string',
+            format: 'date-time',
+            example: '2026-08-01T00:00:00.000000Z'
+        ),
+    ]
+)]
+#[OA\Schema(
+    schema: 'UnauthenticatedResponse',
+    type: 'object',
+    properties: [
+        new OA\Property(
+            property: 'message',
+            type: 'string',
+            example: 'Unauthenticated.'
+        ),
+    ]
+)]
+#[OA\Schema(
+    schema: 'SellerErrorResponse',
+    type: 'object',
+    properties: [
+        new OA\Property(
+            property: 'success',
+            type: 'boolean',
+            example: false
+        ),
+        new OA\Property(
+            property: 'message',
+            type: 'string',
+            example: 'You are not allowed to perform this action.'
+        ),
+        new OA\Property(
+            property: 'data',
+            nullable: true,
+            example: null
+        ),
+    ]
+)]
+final class OpenApiSpec
+{
+}
