@@ -6,6 +6,7 @@ use App\Http\Controllers\API\RegisterController;
 use App\Http\Controllers\API\V1\Admin\BrandController;
 use App\Http\Controllers\API\V1\Admin\CategoryController;
 use App\Http\Controllers\API\V1\Admin\SellerVerificationController;
+use App\Http\Controllers\API\V1\Seller\ProductController;
 use App\Http\Controllers\API\V1\Seller\SellerDocumentController;
 use App\Http\Controllers\API\V1\Seller\SellerProfileController;
 use App\Http\Controllers\API\V1\System\HealthController;
@@ -15,10 +16,6 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 | Version 1 system routes
 |--------------------------------------------------------------------------
-|
-| These routes are public because monitoring services may need to check
-| whether the RushPi API and its dependencies are working correctly.
-|
 */
 
 Route::prefix('v1/system')
@@ -59,8 +56,8 @@ Route::controller(RegisterController::class)
 | Public catalog routes
 |--------------------------------------------------------------------------
 |
-| Public category, brand and approved product routes will be added here
-| after their public controllers have been implemented.
+| Public categories, brands and approved product search routes
+| will be added when the public catalog controller is created.
 |
 */
 
@@ -68,9 +65,6 @@ Route::controller(RegisterController::class)
 |--------------------------------------------------------------------------
 | Authenticated routes
 |--------------------------------------------------------------------------
-|
-| Every route inside this group requires a valid Laravel Sanctum token.
-|
 */
 
 Route::middleware('auth:sanctum')
@@ -104,10 +98,6 @@ Route::middleware('auth:sanctum')
                 |--------------------------------------------------------------------------
                 | Seller profile onboarding
                 |--------------------------------------------------------------------------
-                |
-                | These routes must not use seller.approved because a new seller
-                | needs them before their business is approved.
-                |
                 */
 
                 Route::get(
@@ -137,12 +127,8 @@ Route::middleware('auth:sanctum')
 
                 /*
                 |--------------------------------------------------------------------------
-                | Seller application documents
+                | Seller verification documents
                 |--------------------------------------------------------------------------
-                |
-                | Documents are stored privately. Access must always be checked
-                | inside SellerDocumentController.
-                |
                 */
 
                 Route::get(
@@ -177,7 +163,7 @@ Route::middleware('auth:sanctum')
 
                 /*
                 |--------------------------------------------------------------------------
-                | Submit seller application
+                | Submit seller verification application
                 |--------------------------------------------------------------------------
                 */
 
@@ -194,26 +180,27 @@ Route::middleware('auth:sanctum')
                 |--------------------------------------------------------------------------
                 | Approved seller selling routes
                 |--------------------------------------------------------------------------
-                |
-                | Product, variant, media, price and inventory routes will be
-                | added here as their controllers are implemented.
-                |
                 */
 
                 Route::prefix(
                     'profiles/{sellerProfile:public_id}'
                 )
                     ->middleware('seller.approved')
+                    ->scopeBindings()
                     ->name('selling.')
                     ->group(function (): void {
                         /*
-                         * Upcoming Day 3 routes:
-                         *
-                         * Route::apiResource(
-                         *     'products',
-                         *     SellerProductController::class
-                         * );
-                         */
+                        |--------------------------------------------------------------------------
+                        | Seller product catalog
+                        |--------------------------------------------------------------------------
+                        */
+
+                        Route::apiResource(
+                            'products',
+                            ProductController::class
+                        )->parameters([
+                            'products' => 'product',
+                        ]);
                     });
             });
 
@@ -221,10 +208,6 @@ Route::middleware('auth:sanctum')
         |--------------------------------------------------------------------------
         | Administrator routes
         |--------------------------------------------------------------------------
-        |
-        | Form requests and controllers verify that the authenticated user has
-        | the admin or superadmin role.
-        |
         */
 
         Route::prefix('admin')
