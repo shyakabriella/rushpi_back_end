@@ -7,27 +7,26 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
-class Category extends Model
+class Brand extends Model
 {
     use HasFactory;
     use SoftDeletes;
 
     /**
-     * Fields that can be assigned safely.
+     * Fields that may be assigned through create() or update().
      *
      * @var array<int, string>
      */
     protected $fillable = [
-        'parent_id',
         'name',
         'slug',
         'description',
-        'image_path',
+        'logo_path',
+        'website_url',
         'is_active',
         'sort_order',
     ];
@@ -50,26 +49,26 @@ class Category extends Model
      */
     protected static function booted(): void
     {
-        static::creating(function (Category $category): void {
-            if (blank($category->public_id)) {
-                $category->public_id = (string) Str::ulid();
+        static::creating(function (Brand $brand): void {
+            if (blank($brand->public_id)) {
+                $brand->public_id = (string) Str::ulid();
             }
 
-            if (blank($category->slug)) {
-                $category->slug = static::generateUniqueSlug(
-                    $category->name
+            if (blank($brand->slug)) {
+                $brand->slug = static::generateUniqueSlug(
+                    $brand->name
                 );
             }
         });
 
-        static::updating(function (Category $category): void {
+        static::updating(function (Brand $brand): void {
             if (
-                $category->isDirty('name')
-                && !$category->isDirty('slug')
+                $brand->isDirty('name')
+                && ! $brand->isDirty('slug')
             ) {
-                $category->slug = static::generateUniqueSlug(
-                    $category->name,
-                    $category->id
+                $brand->slug = static::generateUniqueSlug(
+                    $brand->name,
+                    $brand->id
                 );
             }
         });
@@ -84,30 +83,7 @@ class Category extends Model
     }
 
     /**
-     * Parent category.
-     */
-    public function parent(): BelongsTo
-    {
-        return $this->belongsTo(
-            related: self::class,
-            foreignKey: 'parent_id'
-        );
-    }
-
-    /**
-     * Child categories.
-     */
-    public function children(): HasMany
-    {
-        return $this->hasMany(
-            related: self::class,
-            foreignKey: 'parent_id'
-        )->orderBy('sort_order')
-            ->orderBy('name');
-    }
-
-    /**
-     * Products assigned to this category.
+     * Products belonging to this brand.
      */
     public function products(): HasMany
     {
@@ -115,7 +91,7 @@ class Category extends Model
     }
 
     /**
-     * Limit results to active categories.
+     * Limit results to active brands.
      */
     public function scopeActive(Builder $query): Builder
     {
@@ -123,15 +99,7 @@ class Category extends Model
     }
 
     /**
-     * Limit results to root categories.
-     */
-    public function scopeRoot(Builder $query): Builder
-    {
-        return $query->whereNull('parent_id');
-    }
-
-    /**
-     * Order categories for display.
+     * Order brands for display.
      */
     public function scopeOrdered(Builder $query): Builder
     {
@@ -141,7 +109,33 @@ class Category extends Model
     }
 
     /**
-     * Generate a unique category slug.
+     * Search brands by name or description.
+     */
+    public function scopeSearch(
+        Builder $query,
+        ?string $search
+    ): Builder {
+        $search = trim((string) $search);
+
+        if ($search === '') {
+            return $query;
+        }
+
+        return $query->where(
+            function (Builder $brandQuery) use ($search): void {
+                $brandQuery
+                    ->where('name', 'like', '%'.$search.'%')
+                    ->orWhere(
+                        'description',
+                        'like',
+                        '%'.$search.'%'
+                    );
+            }
+        );
+    }
+
+    /**
+     * Generate a unique brand slug.
      */
     private static function generateUniqueSlug(
         string $name,
@@ -150,7 +144,7 @@ class Category extends Model
         $baseSlug = Str::slug($name);
 
         if ($baseSlug === '') {
-            $baseSlug = 'category';
+            $baseSlug = 'brand';
         }
 
         $slug = $baseSlug;

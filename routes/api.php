@@ -3,7 +3,15 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\API\RegisterController;
+use App\Http\Controllers\API\V1\Admin\BrandController;
+use App\Http\Controllers\API\V1\Admin\CategoryController;
+use App\Http\Controllers\API\V1\Admin\ProductModerationController;
 use App\Http\Controllers\API\V1\Admin\SellerVerificationController;
+use App\Http\Controllers\API\V1\Seller\InventoryController;
+use App\Http\Controllers\API\V1\Seller\ProductController;
+use App\Http\Controllers\API\V1\Seller\ProductMediaController;
+use App\Http\Controllers\API\V1\Seller\ProductVariantController;
+use App\Http\Controllers\API\V1\Seller\ProductVariantPriceController;
 use App\Http\Controllers\API\V1\Seller\SellerDocumentController;
 use App\Http\Controllers\API\V1\Seller\SellerProfileController;
 use App\Http\Controllers\API\V1\System\HealthController;
@@ -11,12 +19,8 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| Version 1 system routes
+| System routes
 |--------------------------------------------------------------------------
-|
-| These routes are public because monitoring services may need to check
-| whether the RushPi API and its dependencies are working correctly.
-|
 */
 
 Route::prefix('v1/system')
@@ -54,28 +58,18 @@ Route::controller(RegisterController::class)
 
 /*
 |--------------------------------------------------------------------------
-| Public category routes
+| Public catalog routes
 |--------------------------------------------------------------------------
 |
-| Temporarily disabled because CategoryController has not been created.
-| Restore this route when the public category controller is available.
+| Public categories, brands and approved product search routes will be
+| added after the public catalog controller is implemented.
 |
 */
-
-// use App\Http\Controllers\API\Admin\CategoryController;
-
-// Route::get(
-//     'categories',
-//     [CategoryController::class, 'publicIndex']
-// )->name('api.categories.index');
 
 /*
 |--------------------------------------------------------------------------
 | Authenticated routes
 |--------------------------------------------------------------------------
-|
-| Every route inside this group requires a valid Laravel Sanctum token.
-|
 */
 
 Route::middleware('auth:sanctum')
@@ -109,10 +103,6 @@ Route::middleware('auth:sanctum')
                 |--------------------------------------------------------------------------
                 | Seller profile onboarding
                 |--------------------------------------------------------------------------
-                |
-                | These routes must not use seller.approved because a new seller
-                | needs them before their business is approved.
-                |
                 */
 
                 Route::get(
@@ -142,12 +132,8 @@ Route::middleware('auth:sanctum')
 
                 /*
                 |--------------------------------------------------------------------------
-                | Seller application documents
+                | Seller verification documents
                 |--------------------------------------------------------------------------
-                |
-                | Documents are stored privately. Access must always be checked
-                | inside SellerDocumentController.
-                |
                 */
 
                 Route::get(
@@ -182,12 +168,8 @@ Route::middleware('auth:sanctum')
 
                 /*
                 |--------------------------------------------------------------------------
-                | Submit seller application
+                | Submit seller verification application
                 |--------------------------------------------------------------------------
-                |
-                | Submission sends the seller application to the administrator
-                | verification workflow.
-                |
                 */
 
                 Route::post(
@@ -203,48 +185,230 @@ Route::middleware('auth:sanctum')
                 |--------------------------------------------------------------------------
                 | Approved seller selling routes
                 |--------------------------------------------------------------------------
-                |
-                | Only approved sellers can access routes placed in this group.
-                |
-                | Add product, inventory, order, quotation, wallet and payout
-                | routes inside this group as they are implemented.
-                |
                 */
 
                 Route::prefix(
                     'profiles/{sellerProfile:public_id}'
                 )
                     ->middleware('seller.approved')
+                    ->scopeBindings()
                     ->name('selling.')
                     ->group(function (): void {
                         /*
-                         * Day 3 and later selling routes:
-                         *
-                         * Route::apiResource(
-                         *     'products',
-                         *     SellerProductController::class
-                         * );
-                         *
-                         * Route::get(
-                         *     'orders',
-                         *     [SellerOrderController::class, 'index']
-                         * )->name('orders.index');
-                         *
-                         * Route::get(
-                         *     'inventory',
-                         *     [SellerInventoryController::class, 'index']
-                         * )->name('inventory.index');
-                         *
-                         * Route::get(
-                         *     'wallet',
-                         *     [SellerWalletController::class, 'show']
-                         * )->name('wallet.show');
-                         *
-                         * Route::post(
-                         *     'payouts',
-                         *     [SellerPayoutController::class, 'store']
-                         * )->name('payouts.store');
+                        |--------------------------------------------------------------------------
+                        | Seller products
+                        |--------------------------------------------------------------------------
+                        */
+
+                        Route::apiResource(
+                            'products',
+                            ProductController::class
+                        )->parameters([
+                            'products' => 'product',
+                        ]);
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Submit product for moderation
+                        |--------------------------------------------------------------------------
+                        */
+
+                        Route::post(
+                            'products/{product:public_id}/submit',
+                            [
+                                ProductController::class,
+                                'submitForReview',
+                            ]
+                        )
+                            ->middleware('throttle:10,1')
+                            ->name('products.submit');
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Product variants
+                        |--------------------------------------------------------------------------
+                        */
+
+                        Route::apiResource(
+                            'products.variants',
+                            ProductVariantController::class
+                        )->parameters([
+                            'products' => 'product',
+                            'variants' => 'variant',
+                        ]);
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Product variant pricing
+                        |--------------------------------------------------------------------------
+                        */
+
+                        Route::get(
+                            'products/{product:public_id}'
+                            .'/variants/{variant:public_id}/price',
+                            [
+                                ProductVariantPriceController::class,
+                                'show',
+                            ]
+                        )->name(
+                            'products.variants.price.show'
+                        );
+
+                        Route::post(
+                            'products/{product:public_id}'
+                            .'/variants/{variant:public_id}/price',
+                            [
+                                ProductVariantPriceController::class,
+                                'store',
+                            ]
+                        )
+                            ->middleware('throttle:30,1')
+                            ->name(
+                                'products.variants.price.store'
+                            );
+
+                        Route::put(
+                            'products/{product:public_id}'
+                            .'/variants/{variant:public_id}/price',
+                            [
+                                ProductVariantPriceController::class,
+                                'update',
+                            ]
+                        )->name(
+                            'products.variants.price.update'
+                        );
+
+                        Route::patch(
+                            'products/{product:public_id}'
+                            .'/variants/{variant:public_id}/price',
+                            [
+                                ProductVariantPriceController::class,
+                                'update',
+                            ]
+                        )->name(
+                            'products.variants.price.patch'
+                        );
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Product variant inventory
+                        |--------------------------------------------------------------------------
+                        */
+
+                        Route::get(
+                            'products/{product:public_id}'
+                            .'/variants/{variant:public_id}/inventory',
+                            [
+                                InventoryController::class,
+                                'show',
+                            ]
+                        )->name(
+                            'products.variants.inventory.show'
+                        );
+
+                        Route::post(
+                            'products/{product:public_id}'
+                            .'/variants/{variant:public_id}'
+                            .'/inventory/adjust',
+                            [
+                                InventoryController::class,
+                                'adjust',
+                            ]
+                        )
+                            ->middleware('throttle:60,1')
+                            ->name(
+                                'products.variants.inventory.adjust'
+                            );
+
+                        Route::put(
+                            'products/{product:public_id}'
+                            .'/variants/{variant:public_id}'
+                            .'/inventory/settings',
+                            [
+                                InventoryController::class,
+                                'updateSettings',
+                            ]
+                        )->name(
+                            'products.variants.inventory.settings.update'
+                        );
+
+                        Route::patch(
+                            'products/{product:public_id}'
+                            .'/variants/{variant:public_id}'
+                            .'/inventory/settings',
+                            [
+                                InventoryController::class,
+                                'updateSettings',
+                            ]
+                        )->name(
+                            'products.variants.inventory.settings.patch'
+                        );
+
+                        Route::get(
+                            'products/{product:public_id}'
+                            .'/variants/{variant:public_id}'
+                            .'/inventory/movements',
+                            [
+                                InventoryController::class,
+                                'movements',
+                            ]
+                        )->name(
+                            'products.variants.inventory.movements'
+                        );
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Product media
+                        |--------------------------------------------------------------------------
+                        */
+
+                        Route::get(
+                            'products/{product:public_id}/media',
+                            [
+                                ProductMediaController::class,
+                                'index',
+                            ]
+                        )->name('products.media.index');
+
+                        Route::post(
+                            'products/{product:public_id}/media',
+                            [
+                                ProductMediaController::class,
+                                'store',
+                            ]
+                        )
+                            ->middleware('throttle:20,1')
+                            ->name('products.media.store');
+
+                        /*
+                         * Keep this fixed path before routes containing
+                         * the dynamic {media} route parameter.
                          */
+                        Route::patch(
+                            'products/{product:public_id}/media/reorder',
+                            [
+                                ProductMediaController::class,
+                                'reorder',
+                            ]
+                        )->name('products.media.reorder');
+
+                        Route::patch(
+                            'products/{product:public_id}'
+                            .'/media/{media:public_id}/primary',
+                            [
+                                ProductMediaController::class,
+                                'setPrimary',
+                            ]
+                        )->name('products.media.primary');
+
+                        Route::delete(
+                            'products/{product:public_id}'
+                            .'/media/{media:public_id}',
+                            [
+                                ProductMediaController::class,
+                                'destroy',
+                            ]
+                        )->name('products.media.destroy');
                     });
             });
 
@@ -252,15 +416,63 @@ Route::middleware('auth:sanctum')
         |--------------------------------------------------------------------------
         | Administrator routes
         |--------------------------------------------------------------------------
-        |
-        | SellerVerificationController, Form Requests, policies or middleware
-        | must verify that the authenticated user is an administrator.
-        |
         */
 
         Route::prefix('admin')
             ->name('api.admin.')
             ->group(function (): void {
+                /*
+                |--------------------------------------------------------------------------
+                | Catalog administration
+                |--------------------------------------------------------------------------
+                */
+
+                Route::apiResource(
+                    'categories',
+                    CategoryController::class
+                );
+
+                Route::apiResource(
+                    'brands',
+                    BrandController::class
+                );
+
+                /*
+                |--------------------------------------------------------------------------
+                | Product moderation
+                |--------------------------------------------------------------------------
+                |
+                | The controller and request verify that the authenticated
+                | user has the admin or superadmin role.
+                |
+                */
+
+                Route::get(
+                    'products',
+                    [
+                        ProductModerationController::class,
+                        'index',
+                    ]
+                )->name('products.index');
+
+                Route::get(
+                    'products/{product:public_id}',
+                    [
+                        ProductModerationController::class,
+                        'show',
+                    ]
+                )->name('products.show');
+
+                Route::post(
+                    'products/{product:public_id}/moderate',
+                    [
+                        ProductModerationController::class,
+                        'moderate',
+                    ]
+                )
+                    ->middleware('throttle:30,1')
+                    ->name('products.moderate');
+
                 /*
                 |--------------------------------------------------------------------------
                 | Seller verification applications
@@ -269,12 +481,18 @@ Route::middleware('auth:sanctum')
 
                 Route::get(
                     'seller-applications',
-                    [SellerVerificationController::class, 'index']
+                    [
+                        SellerVerificationController::class,
+                        'index',
+                    ]
                 )->name('seller-applications.index');
 
                 Route::get(
                     'seller-applications/{sellerApplication:public_id}',
-                    [SellerVerificationController::class, 'show']
+                    [
+                        SellerVerificationController::class,
+                        'show',
+                    ]
                 )->name('seller-applications.show');
 
                 Route::post(
@@ -368,19 +586,5 @@ Route::middleware('auth:sanctum')
                         'suspend',
                     ]
                 )->name('seller-profiles.suspend');
-
-                /*
-                |--------------------------------------------------------------------------
-                | Category administration
-                |--------------------------------------------------------------------------
-                |
-                | Temporarily disabled until CategoryController exists.
-                |
-                */
-
-                // Route::apiResource(
-                //     'categories',
-                //     CategoryController::class
-                // );
             });
     });
