@@ -26,3 +26,7 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 .env.docker
+*.backup
+*.backup-*
+*.backup.*
+storage/backups/
