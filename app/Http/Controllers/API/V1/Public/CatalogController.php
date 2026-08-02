@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\API\V1\Public;
 
 use App\Enums\ProductCondition;
+use App\Enums\ProductMediaProcessingStatus;
 use App\Enums\ProductStatus;
 use App\Enums\SellerProfileStatus;
 use App\Http\Controllers\Controller;
@@ -12,7 +13,6 @@ use App\Http\Resources\PublicProductResource;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
-use App\Models\ProductReturnPolicy;
 use App\Models\ProductVariantPrice;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -24,8 +24,9 @@ final class CatalogController extends Controller
     /**
      * List searchable products that are safe for the public catalog.
      */
-    public function index(Request $request): JsonResponse
-    {
+    public function index(
+        Request $request
+    ): JsonResponse {
         $validated = $request->validate([
             'q' => [
                 'nullable',
@@ -47,7 +48,9 @@ final class CatalogController extends Controller
 
             'condition' => [
                 'nullable',
-                Rule::enum(ProductCondition::class),
+                Rule::enum(
+                    ProductCondition::class
+                ),
             ],
 
             'min_price' => [
@@ -70,7 +73,6 @@ final class CatalogController extends Controller
 
             'sort' => [
                 'nullable',
-
                 Rule::in([
                     'newest',
                     'oldest',
@@ -89,25 +91,30 @@ final class CatalogController extends Controller
             ],
         ]);
 
-        $query = $this->publicProductsQuery();
+        $query =
+            $this->publicProductsQuery();
 
         $this->applySearchFilter(
             $query,
-            $validated['q'] ?? null
+            $validated['q']
+                ?? null
         );
 
         $this->applyCategoryFilter(
             $query,
-            $validated['category'] ?? null
+            $validated['category']
+                ?? null
         );
 
         $this->applyBrandFilter(
             $query,
-            $validated['brand'] ?? null
+            $validated['brand']
+                ?? null
         );
 
         $query->when(
-            $validated['condition'] ?? null,
+            $validated['condition']
+                ?? null,
             static function (
                 Builder $query,
                 string $condition
@@ -121,13 +128,19 @@ final class CatalogController extends Controller
 
         $this->applyPriceFilter(
             $query,
-
-            isset($validated['min_price'])
-                ? (float) $validated['min_price']
+            isset(
+                $validated['min_price']
+            )
+                ? (float) $validated[
+                    'min_price'
+                ]
                 : null,
-
-            isset($validated['max_price'])
-                ? (float) $validated['max_price']
+            isset(
+                $validated['max_price']
+            )
+                ? (float) $validated[
+                    'max_price'
+                ]
                 : null
         );
 
@@ -147,20 +160,20 @@ final class CatalogController extends Controller
 
         $this->applySorting(
             $query,
-            $validated['sort'] ?? 'newest'
+            $validated['sort']
+                ?? 'newest'
         );
 
         $products = $query
             ->paginate(
-                (int) (
-                    $validated['per_page']
+                $validated['per_page']
                     ?? 20
-                )
             )
             ->withQueryString();
 
         return response()->json([
-            'success' => true,
+            'success' =>
+                true,
 
             'message' =>
                 'Public products retrieved successfully.',
@@ -203,10 +216,12 @@ final class CatalogController extends Controller
                     ),
 
                 'previous' =>
-                    $products->previousPageUrl(),
+                    $products
+                        ->previousPageUrl(),
 
                 'next' =>
-                    $products->nextPageUrl(),
+                    $products
+                        ->nextPageUrl(),
             ],
         ]);
     }
@@ -218,27 +233,29 @@ final class CatalogController extends Controller
         Request $request,
         string $product
     ): JsonResponse {
-        $catalogProduct = $this
-            ->publicProductsQuery()
-            ->where(
-                static function (
-                    Builder $query
-                ) use ($product): void {
-                    $query
-                        ->where(
-                            'public_id',
-                            $product
-                        )
-                        ->orWhere(
-                            'slug',
-                            $product
-                        );
-                }
-            )
-            ->firstOrFail();
+        $catalogProduct =
+            $this
+                ->publicProductsQuery()
+                ->where(
+                    static function (
+                        Builder $query
+                    ) use ($product): void {
+                        $query
+                            ->where(
+                                'public_id',
+                                $product
+                            )
+                            ->orWhere(
+                                'slug',
+                                $product
+                            );
+                    }
+                )
+                ->firstOrFail();
 
         return response()->json([
-            'success' => true,
+            'success' =>
+                true,
 
             'message' =>
                 'Public product retrieved successfully.',
@@ -252,9 +269,10 @@ final class CatalogController extends Controller
     }
 
     /**
-     * List active categories that contain publicly visible products.
+     * List active categories that contain public products.
      */
-    public function categories(): JsonResponse
+    public function categories():
+        JsonResponse
     {
         $categories = Category::query()
             ->where(
@@ -266,9 +284,10 @@ final class CatalogController extends Controller
                 function (
                     Builder $query
                 ): void {
-                    $this->applyPublicVisibility(
-                        $query
-                    );
+                    $this
+                        ->applyPublicVisibility(
+                            $query
+                        );
                 }
             )
             ->with([
@@ -305,10 +324,12 @@ final class CatalogController extends Controller
                             ->slug,
 
                     'description' =>
-                        $category->description,
+                        $category
+                            ->description,
 
                     'image_path' =>
-                        $category->image_path,
+                        $category
+                            ->image_path,
 
                     'sort_order' =>
                         (int) $category
@@ -319,30 +340,32 @@ final class CatalogController extends Controller
                             ->public_products_count,
 
                     'parent' =>
-                        $category->parent !== null
-                            ? [
-                                'public_id' =>
-                                    (string) $category
-                                        ->parent
-                                        ->public_id,
+                        $category->parent
+                            !== null
+                                ? [
+                                    'public_id' =>
+                                        (string) $category
+                                            ->parent
+                                            ->public_id,
 
-                                'name' =>
-                                    (string) $category
-                                        ->parent
-                                        ->name,
+                                    'name' =>
+                                        (string) $category
+                                            ->parent
+                                            ->name,
 
-                                'slug' =>
-                                    (string) $category
-                                        ->parent
-                                        ->slug,
-                            ]
-                            : null,
+                                    'slug' =>
+                                        (string) $category
+                                            ->parent
+                                            ->slug,
+                                ]
+                                : null,
                 ]
             )
             ->values();
 
         return response()->json([
-            'success' => true,
+            'success' =>
+                true,
 
             'message' =>
                 'Public categories retrieved successfully.',
@@ -353,9 +376,10 @@ final class CatalogController extends Controller
     }
 
     /**
-     * List active brands that contain publicly visible products.
+     * List active brands that contain public products.
      */
-    public function brands(): JsonResponse
+    public function brands():
+        JsonResponse
     {
         $brands = Brand::query()
             ->where(
@@ -367,9 +391,10 @@ final class CatalogController extends Controller
                 function (
                     Builder $query
                 ): void {
-                    $this->applyPublicVisibility(
-                        $query
-                    );
+                    $this
+                        ->applyPublicVisibility(
+                            $query
+                        );
                 }
             )
             ->withCount([
@@ -403,13 +428,16 @@ final class CatalogController extends Controller
                             ->slug,
 
                     'description' =>
-                        $brand->description,
+                        $brand
+                            ->description,
 
                     'logo_path' =>
-                        $brand->logo_path,
+                        $brand
+                            ->logo_path,
 
                     'website_url' =>
-                        $brand->website_url,
+                        $brand
+                            ->website_url,
 
                     'sort_order' =>
                         (int) $brand
@@ -423,7 +451,8 @@ final class CatalogController extends Controller
             ->values();
 
         return response()->json([
-            'success' => true,
+            'success' =>
+                true,
 
             'message' =>
                 'Public brands retrieved successfully.',
@@ -438,9 +467,11 @@ final class CatalogController extends Controller
      *
      * @return Builder<Product>
      */
-    private function publicProductsQuery(): Builder
+    private function publicProductsQuery():
+        Builder
     {
-        $query = Product::query();
+        $query =
+            Product::query();
 
         $this->applyPublicVisibility(
             $query
@@ -454,17 +485,30 @@ final class CatalogController extends Controller
             'sellerProfile:id,public_id,legal_business_name,trading_name,status',
 
             /*
-             * Only the active return policy is exposed publicly.
+             * Only completed product-level media is loaded.
              */
-            'activeReturnPolicy',
+            'media' =>
+                static function (
+                    Builder $mediaQuery
+                ): void {
+                    self::applyPublicMediaVisibility(
+                        $mediaQuery
+                    );
+                },
 
             'media.variant:id,public_id',
 
+            /*
+             * The relation itself should constrain the policy to the active,
+             * currently valid product return policy.
+             */
+            'activeReturnPolicy',
+
             'activeVariants' =>
                 static function (
-                    Builder $query
+                    Builder $variantQuery
                 ): void {
-                    $query
+                    $variantQuery
                         ->orderByDesc(
                             'is_default'
                         )
@@ -478,33 +522,22 @@ final class CatalogController extends Controller
 
             'activeVariants.inventoryStock',
 
+            /*
+             * Variant media also uses optimized completed renditions only.
+             */
             'activeVariants.media' =>
                 static function (
-                    Builder $query
+                    Builder $mediaQuery
                 ): void {
-                    $query
-                        ->orderByDesc(
-                            'is_primary'
-                        )
-                        ->orderBy(
-                            'sort_order'
-                        )
-                        ->orderBy('id');
+                    self::applyPublicMediaVisibility(
+                        $mediaQuery
+                    );
                 },
         ]);
     }
 
     /**
-     * Apply all visibility rules required for a public product.
-     *
-     * A public product must have:
-     *
-     * - approved product status;
-     * - approved seller;
-     * - active category;
-     * - active brand when a brand is assigned;
-     * - an active variant with a positive selling price;
-     * - a complete active return policy.
+     * Apply every rule required for public product visibility.
      *
      * @param Builder<Product> $query
      */
@@ -512,10 +545,19 @@ final class CatalogController extends Controller
         Builder $query
     ): void {
         $query
+            /*
+             * Only administrator-approved products are public.
+             */
             ->where(
                 'status',
-                ProductStatus::APPROVED->value
+                ProductStatus
+                    ::APPROVED
+                    ->value
             )
+
+            /*
+             * The seller must remain approved.
+             */
             ->whereHas(
                 'sellerProfile',
                 static function (
@@ -523,11 +565,16 @@ final class CatalogController extends Controller
                 ): void {
                     $sellerQuery->where(
                         'status',
-                        SellerProfileStatus::APPROVED
+                        SellerProfileStatus
+                            ::APPROVED
                             ->value
                     );
                 }
             )
+
+            /*
+             * The assigned category must be active.
+             */
             ->whereHas(
                 'category',
                 static function (
@@ -539,6 +586,10 @@ final class CatalogController extends Controller
                     );
                 }
             )
+
+            /*
+             * A missing brand is permitted. An assigned brand must be active.
+             */
             ->where(
                 static function (
                     Builder $brandQuery
@@ -560,6 +611,10 @@ final class CatalogController extends Controller
                         );
                 }
             )
+
+            /*
+             * At least one active variant must have a positive public price.
+             */
             ->whereHas(
                 'activeVariants',
                 static function (
@@ -579,123 +634,56 @@ final class CatalogController extends Controller
                     );
                 }
             )
+
+            /*
+             * At least one successfully processed optimized image is required.
+             */
             ->whereHas(
-                'activeReturnPolicy',
+                'media',
                 static function (
-                    Builder $policyQuery
+                    Builder $mediaQuery
                 ): void {
-                    $policyQuery
-                        ->where(
-                            'is_active',
-                            true
-                        )
-                        ->whereIn(
-                            'return_shipping_payer',
-                            ProductReturnPolicy
-                                ::shippingPayers()
-                        )
-                        ->whereBetween(
-                            'restocking_fee_percent',
-                            [
-                                0,
-                                100,
-                            ]
-                        )
-                        ->where(
-                            static function (
-                                Builder $configurationQuery
-                            ): void {
-                                /*
-                                 * Returnable products must provide a valid
-                                 * return window and at least one resolution.
-                                 */
-                                $configurationQuery
-                                    ->where(
-                                        static function (
-                                            Builder $returnableQuery
-                                        ): void {
-                                            $returnableQuery
-                                                ->where(
-                                                    'is_returnable',
-                                                    true
-                                                )
-                                                ->where(
-                                                    'return_window_days',
-                                                    '>=',
-                                                    1
-                                                )
-                                                ->where(
-                                                    'return_window_days',
-                                                    '<=',
-                                                    365
-                                                )
-                                                ->where(
-                                                    static function (
-                                                        Builder $resolutionQuery
-                                                    ): void {
-                                                        $resolutionQuery
-                                                            ->where(
-                                                                'allow_refund',
-                                                                true
-                                                            )
-                                                            ->orWhere(
-                                                                'allow_exchange',
-                                                                true
-                                                            );
-                                                    }
-                                                )
-                                                ->where(
-                                                    static function (
-                                                        Builder $refundQuery
-                                                    ): void {
-                                                        /*
-                                                         * Refund methods are
-                                                         * only mandatory when
-                                                         * refunds are enabled.
-                                                         */
-                                                        $refundQuery
-                                                            ->where(
-                                                                'allow_refund',
-                                                                false
-                                                            )
-                                                            ->orWhereNotNull(
-                                                                'refund_methods'
-                                                            );
-                                                    }
-                                                );
-                                        }
-                                    )
-                                    ->orWhere(
-                                        static function (
-                                            Builder $nonReturnableQuery
-                                        ): void {
-                                            /*
-                                             * Non-returnable products remain
-                                             * valid when the reason is clear.
-                                             */
-                                            $nonReturnableQuery
-                                                ->where(
-                                                    'is_returnable',
-                                                    false
-                                                )
-                                                ->whereNotNull(
-                                                    'non_returnable_reason'
-                                                )
-                                                ->where(
-                                                    'non_returnable_reason',
-                                                    '!=',
-                                                    ''
-                                                );
-                                        }
-                                    );
-                            }
-                        );
+                    self::applyPublicMediaVisibility(
+                        $mediaQuery
+                    );
                 }
+            )
+
+            /*
+             * Public products must have a currently active return policy.
+             */
+            ->whereHas(
+                'activeReturnPolicy'
             );
     }
 
     /**
-     * Search public product, variant, seller, category and brand information.
+     * Restrict public media to successfully generated optimized renditions.
+     */
+    private static function applyPublicMediaVisibility(
+        Builder $query
+    ): void {
+        $query
+            ->where(
+                'processing_status',
+                ProductMediaProcessingStatus
+                    ::COMPLETED
+                    ->value
+            )
+            ->whereNotNull(
+                'renditions'
+            )
+            ->orderByDesc(
+                'is_primary'
+            )
+            ->orderBy(
+                'sort_order'
+            )
+            ->orderBy('id');
+    }
+
+    /**
+     * Search product, variant, seller, category and brand information.
      *
      * @param Builder<Product> $query
      */
@@ -711,12 +699,14 @@ final class CatalogController extends Controller
             return;
         }
 
-        $escapedSearch = addcslashes(
-            $search,
-            '\\%_'
-        );
+        $escapedSearch =
+            addcslashes(
+                $search,
+                '\\%_'
+            );
 
-        $like = "%{$escapedSearch}%";
+        $like =
+            "%{$escapedSearch}%";
 
         $query->where(
             static function (
@@ -825,7 +815,7 @@ final class CatalogController extends Controller
     }
 
     /**
-     * Filter by category public ID or slug.
+     * Filter by category public identifier or slug.
      *
      * @param Builder<Product> $query
      */
@@ -840,7 +830,8 @@ final class CatalogController extends Controller
             return;
         }
 
-        $category = trim($category);
+        $category =
+            trim($category);
 
         $query->whereHas(
             'category',
@@ -867,7 +858,7 @@ final class CatalogController extends Controller
     }
 
     /**
-     * Filter by brand public ID or slug.
+     * Filter by brand public identifier or slug.
      *
      * @param Builder<Product> $query
      */
@@ -882,7 +873,8 @@ final class CatalogController extends Controller
             return;
         }
 
-        $brand = trim($brand);
+        $brand =
+            trim($brand);
 
         $query->whereHas(
             'brand',
@@ -909,7 +901,7 @@ final class CatalogController extends Controller
     }
 
     /**
-     * Filter products using active variant selling prices.
+     * Filter products using active-variant selling prices.
      *
      * @param Builder<Product> $query
      */
@@ -933,7 +925,10 @@ final class CatalogController extends Controller
                 $minimumPrice,
                 $maximumPrice
             ): void {
-                if ($minimumPrice !== null) {
+                if (
+                    $minimumPrice
+                    !== null
+                ) {
                     $priceQuery->where(
                         'selling_price',
                         '>=',
@@ -941,7 +936,10 @@ final class CatalogController extends Controller
                     );
                 }
 
-                if ($maximumPrice !== null) {
+                if (
+                    $maximumPrice
+                    !== null
+                ) {
                     $priceQuery->where(
                         'selling_price',
                         '<=',
@@ -953,7 +951,7 @@ final class CatalogController extends Controller
     }
 
     /**
-     * Filter products by active variant stock availability.
+     * Filter products by active-variant stock availability.
      *
      * @param Builder<Product> $query
      */
@@ -999,7 +997,7 @@ final class CatalogController extends Controller
     }
 
     /**
-     * Apply a safe public sorting option.
+     * Apply a supported public sorting option.
      *
      * @param Builder<Product> $query
      */
@@ -1057,9 +1055,10 @@ final class CatalogController extends Controller
     }
 
     /**
-     * Build the correlated starting-price subquery used for sorting.
+     * Build the correlated starting-price query used for sorting.
      */
-    private function minimumSellingPriceSubquery(): Builder
+    private function minimumSellingPriceSubquery():
+        Builder
     {
         return ProductVariantPrice::query()
             ->selectRaw(
