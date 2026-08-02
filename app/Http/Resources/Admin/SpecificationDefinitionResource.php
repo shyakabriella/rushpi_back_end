@@ -103,9 +103,7 @@ final class SpecificationDefinitionResource extends JsonResource
                                         $assignment->relationLoaded(
                                             'category'
                                         )
-                                            ? (
-                                                string
-                                            ) $assignment
+                                            ? $assignment
                                                 ->category
                                                 ?->public_id
                                             : null,
