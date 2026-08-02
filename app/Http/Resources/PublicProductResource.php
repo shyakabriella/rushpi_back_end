@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Models\Product;
-use App\Models\ProductReturnPolicy;
+use App\Models\ProductMedia;
+use App\Models\ProductVariant;
 use BackedEnum;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 /**
@@ -21,16 +21,27 @@ use Throwable;
 final class PublicProductResource extends JsonResource
 {
     /**
-     * Transform the approved product into customer-safe catalog data.
+     * Transform an approved product into a customer-safe catalog response.
      *
      * @return array<string, mixed>
      */
     public function toArray(
         Request $request
     ): array {
-        $variants = $this->loadedActiveVariants();
+        $media =
+            $this->processedProductMedia();
 
-        $media = $this->loadedProductMedia();
+        $primaryMedia =
+            $this->primaryMedia($media);
+
+        $variants =
+            $this->publicVariants();
+
+        $priceSummary =
+            $this->priceSummary($variants);
+
+        $inventorySummary =
+            $this->inventorySummary($variants);
 
         return [
             /*
@@ -59,204 +70,98 @@ final class PublicProductResource extends JsonResource
                     $this->condition
                 ),
 
-            'warranty_months' =>
-                $this->warranty_months !== null
-                    ? (int) $this->warranty_months
-                    : null,
+            'model_number' =>
+                $this->nullableString(
+                    $this->getAttribute(
+                        'model_number'
+                    )
+                ),
 
             /*
             |--------------------------------------------------------------------------
-            | Product specifications
-            |--------------------------------------------------------------------------
-            */
-
-            'specifications' =>
-                $this->specificationValues(),
-
-            /*
-            |--------------------------------------------------------------------------
-            | Category
+            | Category and brand
             |--------------------------------------------------------------------------
             */
 
             'category' =>
-                $this->whenLoaded(
-                    'category',
-                    function (): ?array {
-                        $category =
-                            $this->category;
-
-                        if (!$category instanceof Model) {
-                            return null;
-                        }
-
-                        return [
-                            'public_id' =>
-                                (string) $category
-                                    ->getAttribute(
-                                        'public_id'
-                                    ),
-
-                            'name' =>
-                                (string) $category
-                                    ->getAttribute(
-                                        'name'
-                                    ),
-
-                            'slug' =>
-                                (string) $category
-                                    ->getAttribute(
-                                        'slug'
-                                    ),
-                        ];
-                    }
-                ),
-
-            /*
-            |--------------------------------------------------------------------------
-            | Brand
-            |--------------------------------------------------------------------------
-            */
+                $this->categoryData(),
 
             'brand' =>
-                $this->whenLoaded(
-                    'brand',
-                    function (): ?array {
-                        $brand =
-                            $this->brand;
-
-                        if (!$brand instanceof Model) {
-                            return null;
-                        }
-
-                        $logoPath =
-                            $brand->getAttribute(
-                                'logo_path'
-                            );
-
-                        return [
-                            'public_id' =>
-                                (string) $brand
-                                    ->getAttribute(
-                                        'public_id'
-                                    ),
-
-                            'name' =>
-                                (string) $brand
-                                    ->getAttribute(
-                                        'name'
-                                    ),
-
-                            'slug' =>
-                                (string) $brand
-                                    ->getAttribute(
-                                        'slug'
-                                    ),
-
-                            'logo_url' =>
-                                $this->publicStorageUrl(
-                                    is_string($logoPath)
-                                        ? $logoPath
-                                        : null
-                                ),
-                        ];
-                    }
-                ),
+                $this->brandData(),
 
             /*
             |--------------------------------------------------------------------------
-            | Verified seller
+            | Approved seller
             |--------------------------------------------------------------------------
             |
-            | Registration numbers, tax numbers, contact details, account
-            | members and verification documents are intentionally excluded.
+            | Only customer-safe business identity is returned.
             |
             */
 
             'seller' =>
-                $this->whenLoaded(
-                    'sellerProfile',
-                    function (): ?array {
-                        $seller =
-                            $this->sellerProfile;
-
-                        if (!$seller instanceof Model) {
-                            return null;
-                        }
-
-                        $tradingName = trim(
-                            (string) (
-                                $seller->getAttribute(
-                                    'trading_name'
-                                ) ?? ''
-                            )
-                        );
-
-                        $legalName = trim(
-                            (string) (
-                                $seller->getAttribute(
-                                    'legal_business_name'
-                                ) ?? ''
-                            )
-                        );
-
-                        return [
-                            'public_id' =>
-                                (string) $seller
-                                    ->getAttribute(
-                                        'public_id'
-                                    ),
-
-                            'name' =>
-                                $tradingName !== ''
-                                    ? $tradingName
-                                    : $legalName,
-
-                            'is_verified' =>
-                                true,
-                        ];
-                    }
-                ),
+                $this->sellerData(),
 
             /*
             |--------------------------------------------------------------------------
-            | Customer return policy
+            | Product card image
             |--------------------------------------------------------------------------
             |
-            | Only the active customer-facing policy is returned. Audit users,
-            | internal product information and configuration errors are not
-            | exposed publicly.
+            | The image URL points to a generated optimized rendition.
+            | The original uploaded file is never used here.
             |
             */
 
-            'return_policy' =>
-                $this->publicReturnPolicy(),
+            'image_url' =>
+                $primaryMedia instanceof
+                ProductMedia
+                    ? $this->publicMediaUrl(
+                        $primaryMedia,
+                        'card'
+                    )
+                    : null,
+
+            'primary_image' =>
+                $primaryMedia instanceof
+                ProductMedia
+                    ? (
+                        new PublicProductMediaResource(
+                            $primaryMedia
+                        )
+                    )->resolve($request)
+                    : null,
 
             /*
             |--------------------------------------------------------------------------
-            | Pricing summary
+            | Processed product media
             |--------------------------------------------------------------------------
             */
 
-            'pricing' =>
-                $this->pricingSummary(
-                    $variants
-                ),
+            'media' =>
+                PublicProductMediaResource::collection(
+                    $media
+                )->resolve($request),
 
             /*
             |--------------------------------------------------------------------------
-            | Availability summary
+            | Price summary
             |--------------------------------------------------------------------------
             */
 
-            'availability' =>
-                $this->availabilitySummary(
-                    $variants
-                ),
+            'price' =>
+                $priceSummary,
 
             /*
             |--------------------------------------------------------------------------
-            | Active variants
+            | Inventory summary
+            |--------------------------------------------------------------------------
+            */
+
+            'inventory' =>
+                $inventorySummary,
+
+            /*
+            |--------------------------------------------------------------------------
+            | Purchasable active variants
             |--------------------------------------------------------------------------
             */
 
@@ -264,10 +169,11 @@ final class PublicProductResource extends JsonResource
                 $variants
                     ->map(
                         fn (
-                            Model $variant
+                            ProductVariant $variant
                         ): array =>
                             $this->variantData(
-                                $variant
+                                $variant,
+                                $request
                             )
                     )
                     ->values()
@@ -275,27 +181,12 @@ final class PublicProductResource extends JsonResource
 
             /*
             |--------------------------------------------------------------------------
-            | Product media
+            | Customer return policy
             |--------------------------------------------------------------------------
             */
 
-            'media' =>
-                $media
-                    ->map(
-                        fn (
-                            Model $mediaItem
-                        ): array =>
-                            $this->mediaData(
-                                $mediaItem
-                            )
-                    )
-                    ->values()
-                    ->all(),
-
-            'primary_media' =>
-                $this->primaryMediaData(
-                    $media
-                ),
+            'return_policy' =>
+                $this->returnPolicyData(),
 
             /*
             |--------------------------------------------------------------------------
@@ -322,751 +213,1075 @@ final class PublicProductResource extends JsonResource
         ];
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Product relationships
+    |--------------------------------------------------------------------------
+    */
+
     /**
-     * Transform one active product variant.
+     * Return public category information.
      *
-     * Cost prices and internal stock configuration are excluded.
+     * @return array<string, mixed>|null
+     */
+    private function categoryData(): ?array
+    {
+        if (
+            !$this->relationLoaded(
+                'category'
+            )
+        ) {
+            return null;
+        }
+
+        $category =
+            $this->category;
+
+        if (!$category instanceof Model) {
+            return null;
+        }
+
+        return [
+            'public_id' =>
+                (string) $category
+                    ->getAttribute(
+                        'public_id'
+                    ),
+
+            'name' =>
+                (string) $category
+                    ->getAttribute(
+                        'name'
+                    ),
+
+            'slug' =>
+                (string) $category
+                    ->getAttribute(
+                        'slug'
+                    ),
+        ];
+    }
+
+    /**
+     * Return public brand information.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function brandData(): ?array
+    {
+        if (
+            !$this->relationLoaded(
+                'brand'
+            )
+        ) {
+            return null;
+        }
+
+        $brand =
+            $this->brand;
+
+        if (!$brand instanceof Model) {
+            return null;
+        }
+
+        return [
+            'public_id' =>
+                (string) $brand
+                    ->getAttribute(
+                        'public_id'
+                    ),
+
+            'name' =>
+                (string) $brand
+                    ->getAttribute(
+                        'name'
+                    ),
+
+            'slug' =>
+                (string) $brand
+                    ->getAttribute(
+                        'slug'
+                    ),
+
+            'logo_path' =>
+                $brand->getAttribute(
+                    'logo_path'
+                ),
+        ];
+    }
+
+    /**
+     * Return customer-safe approved seller information.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function sellerData(): ?array
+    {
+        if (
+            !$this->relationLoaded(
+                'sellerProfile'
+            )
+        ) {
+            return null;
+        }
+
+        $seller =
+            $this->sellerProfile;
+
+        if (!$seller instanceof Model) {
+            return null;
+        }
+
+        $tradingName =
+            $this->nullableString(
+                $seller->getAttribute(
+                    'trading_name'
+                )
+            );
+
+        $legalName =
+            $this->nullableString(
+                $seller->getAttribute(
+                    'legal_business_name'
+                )
+            );
+
+        return [
+            'public_id' =>
+                (string) $seller
+                    ->getAttribute(
+                        'public_id'
+                    ),
+
+            'name' =>
+                $tradingName
+                ?? $legalName,
+
+            'trading_name' =>
+                $tradingName,
+        ];
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Product media
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Return only successfully processed product media.
+     *
+     * Pending, processing and failed files are excluded from public responses.
+     *
+     * @return Collection<int, ProductMedia>
+     */
+    private function processedProductMedia():
+        Collection
+    {
+        if (
+            !$this->relationLoaded(
+                'media'
+            )
+        ) {
+            return collect();
+        }
+
+        return collect(
+            $this->media
+        )
+            ->filter(
+                static fn (
+                    mixed $media
+                ): bool =>
+                    $media instanceof
+                        ProductMedia
+                    && $media
+                        ->isReadyForPublicUse()
+            )
+            ->sortBy(
+                static fn (
+                    ProductMedia $media
+                ): array => [
+                    $media->is_primary
+                        ? 0
+                        : 1,
+
+                    (int) $media
+                        ->sort_order,
+
+                    (string) $media
+                        ->getKey(),
+                ]
+            )
+            ->values();
+    }
+
+    /**
+     * Select the primary public product media.
+     */
+    private function primaryMedia(
+        Collection $media
+    ): ?ProductMedia {
+        $primary =
+            $media->first(
+                static fn (
+                    ProductMedia $media
+                ): bool =>
+                    (bool) $media
+                        ->is_primary
+            );
+
+        if (
+            $primary instanceof
+            ProductMedia
+        ) {
+            return $primary;
+        }
+
+        $first =
+            $media->first();
+
+        return $first instanceof
+            ProductMedia
+                ? $first
+                : null;
+    }
+
+    /**
+     * Return a strictly optimized public media URL.
+     *
+     * This helper never falls back to the original upload.
+     */
+    private function publicMediaUrl(
+        ProductMedia $media,
+        string $context
+    ): ?string {
+        if (!$media->isCompleted()) {
+            return null;
+        }
+
+        $renditionNames = match (
+            strtolower(
+                trim($context)
+            )
+        ) {
+            'thumbnail' => [
+                ProductMedia
+                    ::RENDITION_THUMBNAIL,
+
+                ProductMedia
+                    ::RENDITION_CARD,
+
+                ProductMedia
+                    ::RENDITION_DETAIL,
+
+                ProductMedia
+                    ::RENDITION_ORIGINAL_OPTIMIZED,
+            ],
+
+            'detail' => [
+                ProductMedia
+                    ::RENDITION_DETAIL,
+
+                ProductMedia
+                    ::RENDITION_ORIGINAL_OPTIMIZED,
+
+                ProductMedia
+                    ::RENDITION_CARD,
+
+                ProductMedia
+                    ::RENDITION_THUMBNAIL,
+            ],
+
+            default => [
+                ProductMedia
+                    ::RENDITION_CARD,
+
+                ProductMedia
+                    ::RENDITION_DETAIL,
+
+                ProductMedia
+                    ::RENDITION_THUMBNAIL,
+
+                ProductMedia
+                    ::RENDITION_ORIGINAL_OPTIMIZED,
+            ],
+        };
+
+        foreach (
+            $renditionNames
+            as $renditionName
+        ) {
+            $url =
+                $media->renditionUrl(
+                    $renditionName
+                );
+
+            if (
+                is_string($url)
+                && trim($url) !== ''
+            ) {
+                return trim($url);
+            }
+        }
+
+        return null;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Variants
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Return active variants loaded by CatalogController.
+     *
+     * A variant is public only when it has a positive selling price.
+     *
+     * @return Collection<int, ProductVariant>
+     */
+    private function publicVariants():
+        Collection
+    {
+        if (
+            !$this->relationLoaded(
+                'activeVariants'
+            )
+        ) {
+            return collect();
+        }
+
+        return collect(
+            $this->activeVariants
+        )
+            ->filter(
+                function (
+                    mixed $variant
+                ): bool {
+                    if (
+                        !$variant instanceof
+                        ProductVariant
+                    ) {
+                        return false;
+                    }
+
+                    if (
+                        !$variant->relationLoaded(
+                            'price'
+                        )
+                    ) {
+                        return false;
+                    }
+
+                    $price =
+                        $variant->price;
+
+                    if (!$price instanceof Model) {
+                        return false;
+                    }
+
+                    return (float) $price
+                        ->getAttribute(
+                            'selling_price'
+                        ) > 0;
+                }
+            )
+            ->sortBy(
+                static fn (
+                    ProductVariant $variant
+                ): array => [
+                    $variant->is_default
+                        ? 0
+                        : 1,
+
+                    (int) $variant
+                        ->sort_order,
+
+                    (string) $variant
+                        ->getKey(),
+                ]
+            )
+            ->values();
+    }
+
+    /**
+     * Transform one purchasable product variant.
      *
      * @return array<string, mixed>
      */
     private function variantData(
-        Model $variant
+        ProductVariant $variant,
+        Request $request
     ): array {
-        $price = $variant
-            ->relationLoaded('price')
-                ? $variant->getRelation(
-                    'price'
-                )
+        $price =
+            $variant->relationLoaded(
+                'price'
+            )
+                ? $variant->price
                 : null;
 
-        $inventory = $variant
-            ->relationLoaded(
+        $inventory =
+            $variant->relationLoaded(
                 'inventoryStock'
             )
-                ? $variant->getRelation(
-                    'inventoryStock'
-                )
+                ? $variant
+                    ->inventoryStock
                 : null;
 
-        $inventoryData =
+        $availableQuantity =
+            $this->availableQuantity(
+                $inventory
+            );
+
+        $allowBackorder =
             $inventory instanceof Model
-                ? $this->publicInventoryData(
-                    $inventory
-                )
-                : [
-                    'is_in_stock' => false,
-                    'is_low_stock' => false,
-                    'allow_backorder' => false,
-                    'available_quantity' => 0,
-                ];
+                ? (bool) $inventory
+                    ->getAttribute(
+                        'allow_backorder'
+                    )
+                : false;
 
-        $variantMedia = $variant
-            ->relationLoaded('media')
-                ? $variant->getRelation(
-                    'media'
-                )
-                : collect();
-
-        if (!$variantMedia instanceof Collection) {
-            $variantMedia = collect();
-        }
-
-        $transformedMedia =
-            $variantMedia
-                ->map(
-                    fn (
-                        Model $media
-                    ): array =>
-                        $this->mediaData(
-                            $media
-                        )
-                )
-                ->values()
-                ->all();
+        $variantMedia =
+            $this->processedVariantMedia(
+                $variant
+            );
 
         $primaryMedia =
-            $variantMedia
-                ->first(
-                    static fn (
-                        Model $media
-                    ): bool =>
-                        (bool) $media
-                            ->getAttribute(
-                                'is_primary'
-                            )
-                )
-            ?? $variantMedia->first();
+            $this->primaryMedia(
+                $variantMedia
+            );
 
         return [
             'public_id' =>
                 (string) $variant
-                    ->getAttribute(
-                        'public_id'
-                    ),
-
-            'sku' =>
-                $variant->getAttribute(
-                    'sku'
-                ),
+                    ->public_id,
 
             'name' =>
-                $variant->getAttribute(
-                    'name'
-                ),
+                $variant->name,
 
-            'attributes' =>
-                $variant->getAttribute(
-                    'attributes'
-                ) ?? [],
+            'sku' =>
+                $variant->sku,
 
             'is_default' =>
                 (bool) $variant
-                    ->getAttribute(
-                        'is_default'
-                    ),
-
-            'price' =>
-                $price instanceof Model
-                    ? $this->publicPriceData(
-                        $price
-                    )
-                    : null,
-
-            'availability' =>
-                $inventoryData,
-
-            'media' =>
-                $transformedMedia,
-
-            'primary_media' =>
-                $primaryMedia instanceof Model
-                    ? $this->mediaData(
-                        $primaryMedia
-                    )
-                    : null,
-        ];
-    }
-
-    /**
-     * Transform a variant price without exposing product cost.
-     *
-     * @return array<string, mixed>
-     */
-    private function publicPriceData(
-        Model $price
-    ): array {
-        $sellingPrice =
-            $this->numericValue(
-                $price->getAttribute(
-                    'selling_price'
-                )
-            );
-
-        $compareAtPrice =
-            $this->numericValue(
-                $price->getAttribute(
-                    'compare_at_price'
-                )
-            );
-
-        $currency =
-            $price->getAttribute(
-                'currency'
-            )
-            ?? $price->getAttribute(
-                'currency_code'
-            )
-            ?? 'RWF';
-
-        $discountAmount = null;
-        $discountPercent = null;
-
-        if (
-            $sellingPrice !== null
-            && $compareAtPrice !== null
-            && $compareAtPrice > $sellingPrice
-            && $compareAtPrice > 0
-        ) {
-            $discountAmount = round(
-                $compareAtPrice
-                - $sellingPrice,
-                2
-            );
-
-            $discountPercent = round(
-                (
-                    $discountAmount
-                    / $compareAtPrice
-                ) * 100,
-                2
-            );
-        }
-
-        return [
-            'currency' =>
-                (string) $currency,
-
-            'selling_price' =>
-                $sellingPrice,
-
-            'compare_at_price' =>
-                $compareAtPrice,
-
-            'discount' => [
-                'amount' =>
-                    $discountAmount,
-
-                'percent' =>
-                    $discountPercent,
-            ],
-        ];
-    }
-
-    /**
-     * Transform inventory into customer-safe availability information.
-     *
-     * Internal restock levels and reserved quantities are excluded.
-     *
-     * @return array<string, mixed>
-     */
-    private function publicInventoryData(
-        Model $inventory
-    ): array {
-        $quantityOnHand = (int) (
-            $inventory->getAttribute(
-                'quantity_on_hand'
-            ) ?? 0
-        );
-
-        $quantityReserved = (int) (
-            $inventory->getAttribute(
-                'quantity_reserved'
-            ) ?? 0
-        );
-
-        $availableQuantity = max(
-            $quantityOnHand
-            - $quantityReserved,
-            0
-        );
-
-        $allowBackorder = (bool) (
-            $inventory->getAttribute(
-                'allow_backorder'
-            ) ?? false
-        );
-
-        $lowStockThreshold = (int) (
-            $inventory->getAttribute(
-                'low_stock_threshold'
-            )
-            ?? $inventory->getAttribute(
-                'reorder_level'
-            )
-            ?? 0
-        );
-
-        return [
-            'is_in_stock' =>
-                $availableQuantity > 0
-                || $allowBackorder,
-
-            'is_low_stock' =>
-                $availableQuantity > 0
-                && $lowStockThreshold > 0
-                && $availableQuantity
-                    <= $lowStockThreshold,
-
-            'allow_backorder' =>
-                $allowBackorder,
-
-            'available_quantity' =>
-                $availableQuantity,
-        ];
-    }
-
-    /**
-     * Transform customer-safe product media.
-     *
-     * Storage disk names and internal paths are excluded.
-     *
-     * @return array<string, mixed>
-     */
-    private function mediaData(
-        Model $media
-    ): array {
-        $path =
-            $media->getAttribute(
-                'storage_path'
-            )
-            ?? $media->getAttribute(
-                'path'
-            );
-
-        $disk =
-            $media->getAttribute(
-                'storage_disk'
-            )
-            ?? $media->getAttribute(
-                'disk'
-            )
-            ?? 'public';
-
-        $variantPublicId = null;
-
-        if (
-            $media->relationLoaded(
-                'variant'
-            )
-        ) {
-            $variant =
-                $media->getRelation(
-                    'variant'
-                );
-
-            if ($variant instanceof Model) {
-                $variantPublicId =
-                    (string) $variant
-                        ->getAttribute(
-                            'public_id'
-                        );
-            }
-        }
-
-        return [
-            'public_id' =>
-                (string) $media
-                    ->getAttribute(
-                        'public_id'
-                    ),
-
-            'variant_public_id' =>
-                $variantPublicId,
-
-            'media_type' =>
-                $this->enumValue(
-                    $media->getAttribute(
-                        'media_type'
-                    )
-                ),
-
-            'url' =>
-                $this->mediaUrl(
-                    media: $media,
-                    disk: (string) $disk,
-                    path: is_string($path)
-                        ? $path
-                        : null
-                ),
-
-            'alt_text' =>
-                $media->getAttribute(
-                    'alt_text'
-                ),
-
-            'mime_type' =>
-                $media->getAttribute(
-                    'mime_type'
-                ),
-
-            'is_primary' =>
-                (bool) $media
-                    ->getAttribute(
-                        'is_primary'
-                    ),
+                    ->is_default,
 
             'sort_order' =>
-                (int) (
-                    $media->getAttribute(
-                        'sort_order'
-                    ) ?? 0
+                (int) $variant
+                    ->sort_order,
+
+            'attributes' =>
+                is_array(
+                    $variant
+                        ->getAttribute(
+                            'attributes'
+                        )
+                )
+                    ? $variant
+                        ->getAttribute(
+                            'attributes'
+                        )
+                    : [],
+
+            'price' =>
+                $this->variantPriceData(
+                    $price
                 ),
+
+            'inventory' => [
+                'available_quantity' =>
+                    $availableQuantity,
+
+                'allow_backorder' =>
+                    $allowBackorder,
+
+                'is_available' =>
+                    $availableQuantity > 0
+                    || $allowBackorder,
+
+                'stock_status' =>
+                    $this->stockStatus(
+                        $availableQuantity,
+                        $allowBackorder
+                    ),
+            ],
+
+            'image_url' =>
+                $primaryMedia instanceof
+                ProductMedia
+                    ? $this->publicMediaUrl(
+                        $primaryMedia,
+                        'card'
+                    )
+                    : null,
+
+            'media' =>
+                PublicProductMediaResource::collection(
+                    $variantMedia
+                )->resolve($request),
         ];
     }
 
     /**
-     * Build the product-level pricing summary.
+     * Return processed media belonging directly to one variant.
      *
-     * @param Collection<int, Model> $variants
+     * @return Collection<int, ProductMedia>
+     */
+    private function processedVariantMedia(
+        ProductVariant $variant
+    ): Collection {
+        if (
+            !$variant->relationLoaded(
+                'media'
+            )
+        ) {
+            return collect();
+        }
+
+        return collect(
+            $variant->media
+        )
+            ->filter(
+                static fn (
+                    mixed $media
+                ): bool =>
+                    $media instanceof
+                        ProductMedia
+                    && $media
+                        ->isReadyForPublicUse()
+            )
+            ->sortBy(
+                static fn (
+                    ProductMedia $media
+                ): array => [
+                    $media->is_primary
+                        ? 0
+                        : 1,
+
+                    (int) $media
+                        ->sort_order,
+
+                    (string) $media
+                        ->getKey(),
+                ]
+            )
+            ->values();
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Pricing
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Build public product price-range information.
+     *
+     * @param Collection<int, ProductVariant> $variants
      *
      * @return array<string, mixed>
      */
-    private function pricingSummary(
+    private function priceSummary(
         Collection $variants
     ): array {
-        $prices = $variants
-            ->map(
-                static function (
-                    Model $variant
-                ): ?Model {
-                    if (
-                        !$variant
-                            ->relationLoaded(
-                                'price'
-                            )
-                    ) {
-                        return null;
+        $prices =
+            $variants
+                ->map(
+                    function (
+                        ProductVariant $variant
+                    ): ?array {
+                        if (
+                            !$variant
+                                ->relationLoaded(
+                                    'price'
+                                )
+                        ) {
+                            return null;
+                        }
+
+                        $price =
+                            $variant->price;
+
+                        if (!$price instanceof Model) {
+                            return null;
+                        }
+
+                        $sellingPrice =
+                            (float) $price
+                                ->getAttribute(
+                                    'selling_price'
+                                );
+
+                        if ($sellingPrice <= 0) {
+                            return null;
+                        }
+
+                        return [
+                            'amount' =>
+                                $sellingPrice,
+
+                            'currency' =>
+                                strtoupper(
+                                    (string) (
+                                        $price
+                                            ->getAttribute(
+                                                'currency'
+                                            )
+                                        ?? 'RWF'
+                                    )
+                                ),
+                        ];
                     }
-
-                    $price = $variant
-                        ->getRelation(
-                            'price'
-                        );
-
-                    return $price instanceof Model
-                        ? $price
-                        : null;
-                }
-            )
-            ->filter(
-                static fn (
-                    mixed $price
-                ): bool => $price
-                    instanceof Model
-                    && is_numeric(
-                        $price->getAttribute(
-                            'selling_price'
-                        )
-                    )
-                    && (float) $price
-                        ->getAttribute(
-                            'selling_price'
-                        ) > 0
-            )
-            ->values();
+                )
+                ->filter()
+                ->values();
 
         if ($prices->isEmpty()) {
             return [
-                'currency' => null,
-                'minimum_price' => null,
-                'maximum_price' => null,
-                'has_price_range' => false,
+                'minimum' =>
+                    null,
+
+                'maximum' =>
+                    null,
+
+                'currency' =>
+                    null,
+
+                'has_range' =>
+                    false,
+
+                'formatted' =>
+                    null,
             ];
         }
 
-        $sellingPrices = $prices
-            ->map(
-                static fn (
-                    Model $price
-                ): float => (float) $price
-                    ->getAttribute(
-                        'selling_price'
-                    )
+        $minimum =
+            (float) $prices->min(
+                'amount'
             );
 
-        $firstPrice = $prices->first();
+        $maximum =
+            (float) $prices->max(
+                'amount'
+            );
 
         $currency =
-            $firstPrice instanceof Model
-                ? (
-                    $firstPrice->getAttribute(
-                        'currency'
-                    )
-                    ?? $firstPrice->getAttribute(
-                        'currency_code'
-                    )
-                    ?? 'RWF'
-                )
-                : 'RWF';
-
-        $minimum = (float) $sellingPrices
-            ->min();
-
-        $maximum = (float) $sellingPrices
-            ->max();
+            (string) (
+                $prices
+                    ->first()['currency']
+                ?? 'RWF'
+            );
 
         return [
+            'minimum' =>
+                $this->decimalValue(
+                    $minimum
+                ),
+
+            'maximum' =>
+                $this->decimalValue(
+                    $maximum
+                ),
+
             'currency' =>
-                (string) $currency,
+                $currency,
 
-            'minimum_price' =>
-                $minimum,
-
-            'maximum_price' =>
-                $maximum,
-
-            'has_price_range' =>
+            'has_range' =>
                 $minimum !== $maximum,
+
+            'formatted' =>
+                $minimum === $maximum
+                    ? sprintf(
+                        '%s %s',
+                        number_format(
+                            $minimum,
+                            2,
+                            '.',
+                            ''
+                        ),
+                        $currency
+                    )
+                    : sprintf(
+                        '%s - %s %s',
+                        number_format(
+                            $minimum,
+                            2,
+                            '.',
+                            ''
+                        ),
+                        number_format(
+                            $maximum,
+                            2,
+                            '.',
+                            ''
+                        ),
+                        $currency
+                    ),
         ];
     }
 
     /**
-     * Build the product-level stock summary.
+     * Build public price information for one variant.
      *
-     * @param Collection<int, Model> $variants
+     * Cost price is intentionally excluded.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function variantPriceData(
+        mixed $price
+    ): ?array {
+        if (!$price instanceof Model) {
+            return null;
+        }
+
+        $sellingPrice =
+            (float) $price
+                ->getAttribute(
+                    'selling_price'
+                );
+
+        if ($sellingPrice <= 0) {
+            return null;
+        }
+
+        $compareAtPrice =
+            $price->getAttribute(
+                'compare_at_price'
+            );
+
+        $compareAtPrice =
+            is_numeric($compareAtPrice)
+                ? (float) $compareAtPrice
+                : null;
+
+        if (
+            $compareAtPrice !== null
+            && $compareAtPrice <=
+                $sellingPrice
+        ) {
+            $compareAtPrice = null;
+        }
+
+        $discountAmount =
+            $compareAtPrice !== null
+                ? $compareAtPrice
+                    - $sellingPrice
+                : null;
+
+        $discountPercentage =
+            $compareAtPrice !== null
+            && $compareAtPrice > 0
+                ? round(
+                    (
+                        (
+                            $compareAtPrice
+                            - $sellingPrice
+                        )
+                        / $compareAtPrice
+                    ) * 100,
+                    2
+                )
+                : null;
+
+        return [
+            'selling_price' =>
+                $this->decimalValue(
+                    $sellingPrice
+                ),
+
+            'compare_at_price' =>
+                $compareAtPrice !== null
+                    ? $this->decimalValue(
+                        $compareAtPrice
+                    )
+                    : null,
+
+            'currency' =>
+                strtoupper(
+                    (string) (
+                        $price->getAttribute(
+                            'currency'
+                        )
+                        ?? 'RWF'
+                    )
+                ),
+
+            'has_discount' =>
+                $compareAtPrice !== null,
+
+            'discount_amount' =>
+                $discountAmount !== null
+                    ? $this->decimalValue(
+                        $discountAmount
+                    )
+                    : null,
+
+            'discount_percentage' =>
+                $discountPercentage,
+        ];
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Inventory
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Build product-level stock information.
+     *
+     * @param Collection<int, ProductVariant> $variants
      *
      * @return array<string, mixed>
      */
-    private function availabilitySummary(
+    private function inventorySummary(
         Collection $variants
     ): array {
-        $activeVariantsCount =
-            $variants->count();
-
-        $inStockVariants = 0;
-        $backorderVariants = 0;
-        $availableQuantity = 0;
+        $totalAvailable = 0;
+        $allowsBackorder = false;
+        $availableVariantCount = 0;
 
         foreach ($variants as $variant) {
-            if (
-                !$variant->relationLoaded(
+            $inventory =
+                $variant->relationLoaded(
                     'inventoryStock'
                 )
-            ) {
-                continue;
-            }
+                    ? $variant
+                        ->inventoryStock
+                    : null;
 
-            $inventory =
-                $variant->getRelation(
-                    'inventoryStock'
-                );
-
-            if (!$inventory instanceof Model) {
-                continue;
-            }
-
-            $data =
-                $this->publicInventoryData(
+            $available =
+                $this->availableQuantity(
                     $inventory
                 );
 
-            if ($data['is_in_stock']) {
-                $inStockVariants++;
-            }
+            $backorder =
+                $inventory instanceof Model
+                    ? (bool) $inventory
+                        ->getAttribute(
+                            'allow_backorder'
+                        )
+                    : false;
 
-            if ($data['allow_backorder']) {
-                $backorderVariants++;
-            }
+            $totalAvailable +=
+                $available;
 
-            $availableQuantity +=
-                (int) $data[
-                    'available_quantity'
-                ];
+            $allowsBackorder =
+                $allowsBackorder
+                || $backorder;
+
+            if (
+                $available > 0
+                || $backorder
+            ) {
+                $availableVariantCount++;
+            }
         }
 
         return [
-            'is_in_stock' =>
-                $inStockVariants > 0,
+            'is_available' =>
+                $totalAvailable > 0
+                || $allowsBackorder,
+
+            'in_stock' =>
+                $totalAvailable > 0,
+
+            'allow_backorder' =>
+                $allowsBackorder,
 
             'available_quantity' =>
-                $availableQuantity,
+                $totalAvailable,
 
-            'active_variants_count' =>
-                $activeVariantsCount,
+            'available_variants_count' =>
+                $availableVariantCount,
 
-            'in_stock_variants_count' =>
-                $inStockVariants,
-
-            'backorder_variants_count' =>
-                $backorderVariants,
+            'stock_status' =>
+                $this->stockStatus(
+                    $totalAvailable,
+                    $allowsBackorder
+                ),
         ];
     }
 
     /**
-     * Return the active customer-facing return policy without triggering a
-     * database query from inside the resource.
+     * Calculate available inventory without exposing reserved quantity.
+     */
+    private function availableQuantity(
+        mixed $inventory
+    ): int {
+        if (!$inventory instanceof Model) {
+            return 0;
+        }
+
+        $onHand = max(
+            0,
+            (int) $inventory
+                ->getAttribute(
+                    'quantity_on_hand'
+                )
+        );
+
+        $reserved = max(
+            0,
+            (int) $inventory
+                ->getAttribute(
+                    'quantity_reserved'
+                )
+        );
+
+        return max(
+            0,
+            $onHand - $reserved
+        );
+    }
+
+    /**
+     * Return a customer-readable stock status.
+     */
+    private function stockStatus(
+        int $availableQuantity,
+        bool $allowBackorder
+    ): string {
+        if ($availableQuantity > 0) {
+            return 'in_stock';
+        }
+
+        if ($allowBackorder) {
+            return 'available_for_backorder';
+        }
+
+        return 'out_of_stock';
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Return policy
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Return customer-safe active return-policy information.
      *
      * @return array<string, mixed>|null
      */
-    private function publicReturnPolicy(): ?array
+    private function returnPolicyData(): ?array
     {
-        $policy = null;
+        $relationName = null;
 
         if (
-            $this->resource
-                ->relationLoaded(
-                    'activeReturnPolicy'
-                )
+            $this->relationLoaded(
+                'activeReturnPolicy'
+            )
         ) {
-            $loadedPolicy =
-                $this->resource
-                    ->getRelation(
-                        'activeReturnPolicy'
-                    );
-
-            if (
-                $loadedPolicy
-                instanceof ProductReturnPolicy
-            ) {
-                $policy = $loadedPolicy;
-            }
+            $relationName =
+                'activeReturnPolicy';
+        } elseif (
+            $this->relationLoaded(
+                'returnPolicy'
+            )
+        ) {
+            $relationName =
+                'returnPolicy';
         }
 
-        /*
-         * This fallback supports callers that loaded returnPolicy rather than
-         * activeReturnPolicy.
-         */
-
-        if (
-            !$policy instanceof
-            ProductReturnPolicy
-            && $this->resource
-                ->relationLoaded(
-                    'returnPolicy'
-                )
-        ) {
-            $loadedPolicy =
-                $this->resource
-                    ->getRelation(
-                        'returnPolicy'
-                    );
-
-            if (
-                $loadedPolicy
-                    instanceof ProductReturnPolicy
-                && $loadedPolicy->is_active
-            ) {
-                $policy = $loadedPolicy;
-            }
-        }
-
-        if (
-            !$policy instanceof
-            ProductReturnPolicy
-        ) {
+        if ($relationName === null) {
             return null;
         }
 
-        return $policy->toCustomerPolicy();
-    }
+        $policy =
+            $this->getRelation(
+                $relationName
+            );
 
-    /**
-     * Return loaded active variants without triggering another query.
-     *
-     * @return Collection<int, Model>
-     */
-    private function loadedActiveVariants(): Collection
-    {
-        if (
-            !$this->resource
-                ->relationLoaded(
-                    'activeVariants'
-                )
-        ) {
-            return collect();
+        if (!$policy instanceof Model) {
+            return null;
         }
 
-        $variants =
-            $this->resource
-                ->getRelation(
-                    'activeVariants'
-                );
-
-        return $variants instanceof Collection
-            ? $variants
-            : collect();
-    }
-
-    /**
-     * Return loaded product media without triggering another query.
-     *
-     * @return Collection<int, Model>
-     */
-    private function loadedProductMedia(): Collection
-    {
         if (
-            !$this->resource
-                ->relationLoaded('media')
+            method_exists(
+                $policy,
+                'toCustomerPolicy'
+            )
         ) {
-            return collect();
-        }
+            try {
+                $customerPolicy =
+                    $policy
+                        ->toCustomerPolicy();
 
-        $media =
-            $this->resource
-                ->getRelation('media');
-
-        return $media instanceof Collection
-            ? $media
-            : collect();
-    }
-
-    /**
-     * Select the primary product media.
-     *
-     * @param Collection<int, Model> $media
-     *
-     * @return array<string, mixed>|null
-     */
-    private function primaryMediaData(
-        Collection $media
-    ): ?array {
-        $primary = $media
-            ->first(
-                static fn (
-                    Model $mediaItem
-                ): bool => (bool) $mediaItem
-                    ->getAttribute(
-                        'is_primary'
+                if (
+                    is_array(
+                        $customerPolicy
                     )
-            )
-            ?? $media->first();
+                ) {
+                    return $customerPolicy;
+                }
+            } catch (Throwable) {
+                return null;
+            }
+        }
 
-        return $primary instanceof Model
-            ? $this->mediaData(
-                $primary
-            )
-            : null;
+        return [
+            'allows_returns' =>
+                (bool) $policy
+                    ->getAttribute(
+                        'allows_returns'
+                    ),
+
+            'allows_refunds' =>
+                (bool) $policy
+                    ->getAttribute(
+                        'allows_refunds'
+                    ),
+
+            'allows_exchanges' =>
+                (bool) $policy
+                    ->getAttribute(
+                        'allows_exchanges'
+                    ),
+
+            'return_window_days' =>
+                $policy->getAttribute(
+                    'return_window_days'
+                ) !== null
+                    ? (int) $policy
+                        ->getAttribute(
+                            'return_window_days'
+                        )
+                    : null,
+
+            'conditions' =>
+                is_array(
+                    $policy->getAttribute(
+                        'conditions'
+                    )
+                )
+                    ? $policy->getAttribute(
+                        'conditions'
+                    )
+                    : [],
+
+            'refund_methods' =>
+                is_array(
+                    $policy->getAttribute(
+                        'refund_methods'
+                    )
+                )
+                    ? $policy->getAttribute(
+                        'refund_methods'
+                    )
+                    : [],
+        ];
     }
 
-    /**
-     * Return a media URL without allowing storage failures to break the
-     * public catalog.
-     */
-    private function mediaUrl(
-        Model $media,
-        string $disk,
-        ?string $path
-    ): ?string {
-        $existingUrl = $media
-            ->getAttribute('url');
-
-        if (
-            is_string($existingUrl)
-            && trim($existingUrl) !== ''
-        ) {
-            return $existingUrl;
-        }
-
-        if (
-            $path === null
-            || trim($path) === ''
-        ) {
-            return null;
-        }
-
-        try {
-            return Storage::disk(
-                $disk
-            )->url($path);
-        } catch (Throwable) {
-            return null;
-        }
-    }
+    /*
+    |--------------------------------------------------------------------------
+    | Value helpers
+    |--------------------------------------------------------------------------
+    */
 
     /**
-     * Return a URL from the public storage disk.
-     */
-    private function publicStorageUrl(
-        ?string $path
-    ): ?string {
-        if (
-            $path === null
-            || trim($path) === ''
-        ) {
-            return null;
-        }
-
-        try {
-            return Storage::disk(
-                'public'
-            )->url($path);
-        } catch (Throwable) {
-            return null;
-        }
-    }
-
-    /**
-     * Convert enums and scalar values into API strings.
+     * Convert an enum or scalar into a public string.
      */
     private function enumValue(
         mixed $value
@@ -1076,7 +1291,23 @@ final class PublicProductResource extends JsonResource
         }
 
         if ($value instanceof BackedEnum) {
-            return (string) $value->value;
+            return (string) $value
+                ->value;
+        }
+
+        return $this->nullableString(
+            $value
+        );
+    }
+
+    /**
+     * Normalize optional text.
+     */
+    private function nullableString(
+        mixed $value
+    ): ?string {
+        if ($value === null) {
+            return null;
         }
 
         $value = trim(
@@ -1089,31 +1320,35 @@ final class PublicProductResource extends JsonResource
     }
 
     /**
-     * Convert number-like values into floats.
+     * Return a stable two-decimal monetary value.
      */
-    private function numericValue(
-        mixed $value
-    ): ?float {
-        return is_numeric($value)
-            ? (float) $value
-            : null;
+    private function decimalValue(
+        float|int|string $value
+    ): string {
+        return number_format(
+            (float) $value,
+            2,
+            '.',
+            ''
+        );
     }
 
     /**
-     * Convert date values into ISO-8601 strings.
+     * Convert a timestamp into ISO-8601.
      */
     private function dateValue(
         mixed $value
     ): ?string {
         if ($value instanceof CarbonInterface) {
-            return $value->toISOString();
+            return $value
+                ->toISOString();
         }
 
         if (
             is_string($value)
             && trim($value) !== ''
         ) {
-            return $value;
+            return trim($value);
         }
 
         return null;
