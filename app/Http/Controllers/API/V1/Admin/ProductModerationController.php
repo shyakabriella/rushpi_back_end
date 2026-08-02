@@ -4,88 +4,78 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\API\V1\Admin;
 
-use App\Enums\ProductCondition;
-use App\Enums\ProductModerationAction;
+use App\Enums\ProductModerationFlag;
 use App\Enums\ProductStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ModerateProductRequest;
-use App\Http\Resources\AdminProductResource;
+use App\Http\Resources\SellerProductResource;
 use App\Models\Product;
 use App\Models\ProductModerationReview;
+use App\Models\User;
+use BackedEnum;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Throwable;
 
-class ProductModerationController extends Controller
+final class ProductModerationController extends Controller
 {
     /**
-     * Display products available to administrators.
-     *
-     * When no status is supplied, the endpoint returns products
-     * currently waiting for moderation.
+     * List products available to administrators for moderation.
      */
-    public function index(Request $request): JsonResponse
-    {
-        if (! $this->isAdministrator($request)) {
-            return $this->forbiddenResponse();
-        }
-
-        $statusValues = array_map(
-            static fn (ProductStatus $status): string =>
-                $status->value,
-            ProductStatus::cases()
+    public function index(
+        Request $request
+    ): JsonResponse {
+        $this->authorizeAdministrator(
+            $request
         );
 
         $validated = $request->validate([
-            'status' => [
-                'nullable',
-                'string',
-                Rule::in([
-                    'all',
-                    ...$statusValues,
-                ]),
-            ],
-
-            'condition' => [
-                'nullable',
-                Rule::enum(ProductCondition::class),
-            ],
-
-            'seller_public_id' => [
-                'nullable',
-                'string',
-                Rule::exists(
-                    'seller_profiles',
-                    'public_id'
-                ),
-            ],
-
-            'category_public_id' => [
-                'nullable',
-                'string',
-                Rule::exists(
-                    'categories',
-                    'public_id'
-                )->whereNull('deleted_at'),
-            ],
-
-            'brand_public_id' => [
-                'nullable',
-                'string',
-                Rule::exists(
-                    'brands',
-                    'public_id'
-                )->whereNull('deleted_at'),
-            ],
-
             'q' => [
                 'nullable',
                 'string',
-                'max:255',
+                'max:150',
+            ],
+
+            'status' => [
+                'nullable',
+                Rule::enum(
+                    ProductStatus::class
+                ),
+            ],
+
+            'moderation_flag' => [
+                'nullable',
+                Rule::enum(
+                    ProductModerationFlag::class
+                ),
+            ],
+
+            'flagged' => [
+                'nullable',
+                'boolean',
+            ],
+
+            'prohibited' => [
+                'nullable',
+                'boolean',
+            ],
+
+            'sort' => [
+                'nullable',
+                Rule::in([
+                    'newest',
+                    'oldest',
+                    'submitted_newest',
+                    'submitted_oldest',
+                    'name_asc',
+                    'name_desc',
+                ]),
             ],
 
             'per_page' => [
@@ -94,993 +84,1276 @@ class ProductModerationController extends Controller
                 'min:1',
                 'max:100',
             ],
-        ], [
-            'status.in' =>
-                'The selected product status is invalid.',
-
-            'condition.enum' =>
-                'The selected product condition is invalid.',
-
-            'seller_public_id.exists' =>
-                'The selected seller business was not found.',
-
-            'category_public_id.exists' =>
-                'The selected product category was not found.',
-
-            'brand_public_id.exists' =>
-                'The selected product brand was not found.',
-
-            'q.max' =>
-                'The product search may not exceed 255 characters.',
-
-            'per_page.integer' =>
-                'The page size must be a whole number.',
-
-            'per_page.min' =>
-                'The page size must be at least 1.',
-
-            'per_page.max' =>
-                'The page size may not exceed 100.',
         ]);
-
-        $perPage = (int) ($validated['per_page'] ?? 20);
-
-        $selectedStatus = $validated['status']
-            ?? ProductStatus::PENDING_REVIEW->value;
 
         $query = Product::query()
             ->with([
-                'sellerProfile',
-
-                'category',
-
-                'brand',
-
-                'createdBy',
-
-                'updatedBy',
-
-                'approvedBy',
-            ])
-            ->withCount([
-                'variants',
-                'activeVariants',
-                'media',
-                'moderationReviews',
+                'category:id,public_id,name,slug',
+                'brand:id,public_id,name,slug',
+                'sellerProfile:id,public_id,legal_business_name,trading_name,status',
             ]);
 
-        if ($selectedStatus !== 'all') {
-            $query->where(
-                'status',
-                $selectedStatus
-            );
-        }
-
-        if (! empty($validated['condition'])) {
-            $query->where(
-                'condition',
-                $validated['condition']
-            );
-        }
-
-        if (! empty(
-            $validated['seller_public_id']
-        )) {
-            $query->whereHas(
-                'sellerProfile',
-                function (Builder $sellerQuery) use (
-                    $validated
-                ): void {
-                    $sellerQuery->where(
-                        'public_id',
-                        $validated['seller_public_id']
-                    );
-                }
-            );
-        }
-
-        if (! empty(
-            $validated['category_public_id']
-        )) {
-            $query->whereHas(
-                'category',
-                function (Builder $categoryQuery) use (
-                    $validated
-                ): void {
-                    $categoryQuery->where(
-                        'public_id',
-                        $validated['category_public_id']
-                    );
-                }
-            );
-        }
-
-        if (! empty(
-            $validated['brand_public_id']
-        )) {
-            $query->whereHas(
-                'brand',
-                function (Builder $brandQuery) use (
-                    $validated
-                ): void {
-                    $brandQuery->where(
-                        'public_id',
-                        $validated['brand_public_id']
-                    );
-                }
-            );
-        }
-
-        $search = trim(
-            (string) ($validated['q'] ?? '')
+        $this->applySearch(
+            $query,
+            $validated['q']
+                ?? null
         );
 
-        if ($search !== '') {
+        if (
+            isset(
+                $validated['status']
+            )
+        ) {
             $query->where(
-                function (Builder $productQuery) use (
-                    $search
-                ): void {
-                    $productQuery
-                        ->where(
-                            'name',
-                            'like',
-                            '%'.$search.'%'
-                        )
-                        ->orWhere(
-                            'slug',
-                            'like',
-                            '%'.$search.'%'
-                        )
-                        ->orWhere(
-                            'short_description',
-                            'like',
-                            '%'.$search.'%'
-                        )
-                        ->orWhereHas(
-                            'variants',
-                            function (
-                                Builder $variantQuery
-                            ) use ($search): void {
-                                $variantQuery
-                                    ->where(
-                                        'sku',
-                                        'like',
-                                        '%'.$search.'%'
-                                    )
-                                    ->orWhere(
-                                        'barcode',
-                                        'like',
-                                        '%'.$search.'%'
-                                    )
-                                    ->orWhere(
-                                        'name',
-                                        'like',
-                                        '%'.$search.'%'
-                                    );
-                            }
-                        )
-                        ->orWhereHas(
-                            'sellerProfile',
-                            function (
-                                Builder $sellerQuery
-                            ) use ($search): void {
-                                $sellerQuery
-                                    ->where(
-                                        'legal_business_name',
-                                        'like',
-                                        '%'.$search.'%'
-                                    )
-                                    ->orWhere(
-                                        'trading_name',
-                                        'like',
-                                        '%'.$search.'%'
-                                    );
-                            }
-                        );
+                'status',
+                $validated['status']
+            );
+        }
+
+        if (
+            isset(
+                $validated[
+                    'moderation_flag'
+                ]
+            )
+        ) {
+            $query->whereHas(
+                'moderationReviews',
+                static function (
+                    Builder $reviewQuery
+                ) use ($validated): void {
+                    $reviewQuery->whereJsonContains(
+                        'moderation_flags',
+                        $validated[
+                            'moderation_flag'
+                        ]
+                    );
                 }
             );
         }
 
-        $products = $query
-            ->orderByRaw(
-                'submitted_at IS NULL'
+        if (
+            array_key_exists(
+                'flagged',
+                $validated
             )
-            ->orderByDesc('submitted_at')
-            ->orderByDesc('created_at')
-            ->paginate($perPage)
+        ) {
+            $this->applyFlaggedFilter(
+                $query,
+                $request->boolean(
+                    'flagged'
+                )
+            );
+        }
+
+        if (
+            array_key_exists(
+                'prohibited',
+                $validated
+            )
+        ) {
+            $this->applyProhibitedFilter(
+                $query,
+                $request->boolean(
+                    'prohibited'
+                )
+            );
+        }
+
+        $this->applySorting(
+            $query,
+            $validated['sort']
+                ?? 'submitted_newest'
+        );
+
+        $products = $query
+            ->paginate(
+                $validated['per_page']
+                    ?? 20
+            )
             ->withQueryString();
 
-        return AdminProductResource::collection(
-            $products
-        )
-            ->additional([
-                'success' => true,
+        return response()->json([
+            'success' =>
+                true,
 
-                'message' =>
-                    'Administrator products retrieved successfully.',
-            ])
-            ->response();
+            'message' =>
+                'Products awaiting moderation retrieved successfully.',
+
+            'data' =>
+                SellerProductResource::collection(
+                    $products->getCollection()
+                )->resolve($request),
+
+            'meta' => [
+                'current_page' =>
+                    $products->currentPage(),
+
+                'from' =>
+                    $products->firstItem(),
+
+                'last_page' =>
+                    $products->lastPage(),
+
+                'path' =>
+                    $products->path(),
+
+                'per_page' =>
+                    $products->perPage(),
+
+                'to' =>
+                    $products->lastItem(),
+
+                'total' =>
+                    $products->total(),
+            ],
+
+            'links' => [
+                'first' =>
+                    $products->url(1),
+
+                'last' =>
+                    $products->url(
+                        $products->lastPage()
+                    ),
+
+                'previous' =>
+                    $products
+                        ->previousPageUrl(),
+
+                'next' =>
+                    $products
+                        ->nextPageUrl(),
+            ],
+        ]);
     }
 
     /**
-     * Display complete product details for moderation.
+     * Show one product with its complete moderation history.
      */
     public function show(
         Request $request,
         Product $product
     ): JsonResponse {
-        if (! $this->isAdministrator($request)) {
-            return $this->forbiddenResponse();
-        }
+        $this->authorizeAdministrator(
+            $request
+        );
 
-        $this->loadCompleteProduct($product);
+        $this->loadModerationProduct(
+            $product
+        );
+
+        $moderationHistory =
+            ProductModerationReview::query()
+                ->where(
+                    'product_id',
+                    $product->getKey()
+                )
+                ->with([
+                    'moderator:id,public_id,name,email',
+                ])
+                ->latestFirst()
+                ->get();
+
+        $product->setRelation(
+            'moderationReviews',
+            $moderationHistory
+        );
 
         return response()->json([
-            'success' => true,
+            'success' =>
+                true,
 
             'message' =>
                 'Product moderation details retrieved successfully.',
 
-            'data' =>
-                new AdminProductResource($product),
+            'data' => (
+                new SellerProductResource(
+                    $product
+                )
+            )->resolve($request),
+
+            'moderation_history' =>
+                $moderationHistory
+                    ->map(
+                        fn (
+                            ProductModerationReview $review
+                        ): array =>
+                            $this
+                                ->moderationReviewData(
+                                    $review
+                                )
+                    )
+                    ->values()
+                    ->all(),
         ]);
     }
 
     /**
-     * Approve, reject, or suspend a product.
+     * Approve, reject, suspend or return a product to draft.
      */
     public function moderate(
         ModerateProductRequest $request,
         Product $product
     ): JsonResponse {
-        $data = $request->validated();
-
-        $moderationAction =
-            ProductModerationAction::tryFrom(
-                $data['action']
+        $moderator =
+            $this->authorizeAdministrator(
+                $request
             );
 
-        if ($moderationAction === null) {
-            return response()->json([
-                'success' => false,
+        $moderationData =
+            $request->moderationData();
 
-                'message' =>
-                    'The selected product moderation action is invalid.',
-
-                'data' => null,
-            ], 422);
-        }
-
-        $actionKind = $this->actionKind(
-            $moderationAction
-        );
-
-        if ($actionKind === null) {
-            return response()->json([
-                'success' => false,
-
-                'message' =>
-                    'The selected moderation action is not supported.',
-
-                'data' => null,
-            ], 422);
-        }
-
-        try {
-            $result = DB::transaction(
-                function () use (
-                    $request,
-                    $product,
-                    $data,
-                    $moderationAction,
-                    $actionKind
-                ): array {
-                    $lockedProduct = Product::query()
-                        ->whereKey($product->getKey())
+        $result = DB::transaction(
+            function () use (
+                $request,
+                $product,
+                $moderator,
+                $moderationData
+            ): array {
+                $lockedProduct =
+                    Product::query()
+                        ->whereKey(
+                            $product->getKey()
+                        )
                         ->lockForUpdate()
                         ->firstOrFail();
 
-                    $currentStatus =
-                        $this->productStatus(
-                            $lockedProduct
-                        );
-
-                    if ($currentStatus === null) {
-                        return [
-                            'product' => null,
-                            'review' => null,
-                            'error' =>
-                                'The product has an invalid moderation status.',
-                        ];
-                    }
-
-                    $transitionError =
-                        $this->transitionError(
-                            actionKind: $actionKind,
-                            status: $currentStatus
-                        );
-
-                    if ($transitionError !== null) {
-                        return [
-                            'product' => null,
-                            'review' => null,
-                            'error' => $transitionError,
-                        ];
-                    }
-
-                    $this->loadSnapshotRelations(
-                        $lockedProduct
+                $fromStatus =
+                    $this->statusValue(
+                        $lockedProduct->status
                     );
 
-                    if ($actionKind === 'approve') {
-                        $readinessError =
-                            $this->approvalReadinessError(
-                                $lockedProduct
-                            );
-
-                        if ($readinessError !== null) {
-                            return [
-                                'product' => null,
-                                'review' => null,
-                                'error' => $readinessError,
-                            ];
-                        }
-                    }
-
-                    $beforeSnapshot =
-                        $this->moderationSnapshot(
-                            $lockedProduct
-                        );
-
-                    $this->applyDecision(
-                        product: $lockedProduct,
-                        actionKind: $actionKind,
-                        reason: $data['reason'] ?? null,
-                        administratorId: $request
-                            ->user()
-                            ?->getKey()
-                    );
-
-                    $lockedProduct->updated_by =
-                        $request->user()?->getKey();
-
-                    $lockedProduct->save();
-
-                    $afterSnapshot =
-                        $this->moderationSnapshot(
-                            $lockedProduct
-                        );
-
-                    $review = $lockedProduct
-                        ->moderationReviews()
-                        ->create([
-                            'reviewed_by' =>
-                                $request
-                                    ->user()
-                                    ?->getKey(),
-
-                            'action' =>
-                                $moderationAction,
-
-                            'reason' =>
-                                $data['reason'] ?? null,
-
-                            'internal_notes' =>
-                                $data['internal_notes']
-                                ?? null,
-
-                            'snapshot' => [
-                                'before' =>
-                                    $beforeSnapshot,
-
-                                'after' =>
-                                    $afterSnapshot,
-                            ],
-                        ]);
-
-                    return [
-                        'product' => $lockedProduct,
-                        'review' => $review,
-                        'error' => null,
+                $requestedAction =
+                    $moderationData[
+                        'action_value'
                     ];
-                },
-                5
-            );
 
-            if (is_string($result['error'])) {
-                return response()->json([
-                    'success' => false,
+                $appliedAction =
+                    $this->resolveAppliedAction(
+                        requestedAction:
+                            $requestedAction,
 
-                    'message' =>
-                        $result['error'],
+                        currentStatus:
+                            $fromStatus,
 
-                    'data' => null,
-                ], 409);
-            }
+                        requiresRejection:
+                            $moderationData[
+                                'requires_rejection'
+                            ]
+                    );
 
-            $moderatedProduct = $result['product'];
+                $toStatus =
+                    $this->targetStatus(
+                        currentStatus:
+                            $fromStatus,
 
-            if (! $moderatedProduct instanceof Product) {
-                return response()->json([
-                    'success' => false,
+                        action:
+                            $appliedAction
+                    );
 
-                    'message' =>
-                        'The product moderation decision could not be completed.',
+                $this->applyProductDecision(
+                    product:
+                        $lockedProduct,
 
-                    'data' => null,
-                ], 409);
-            }
+                    action:
+                        $appliedAction,
 
-            $moderatedProduct->refresh();
+                    toStatus:
+                        $toStatus,
 
-            $this->loadCompleteProduct(
-                $moderatedProduct
-            );
+                    moderator:
+                        $moderator,
 
-            return response()->json([
-                'success' => true,
-
-                'message' =>
-                    $this->successMessage($actionKind),
-
-                'data' =>
-                    new AdminProductResource(
-                        $moderatedProduct
-                    ),
-            ]);
-        } catch (ModelNotFoundException) {
-            return $this->productNotFoundResponse();
-        } catch (Throwable $exception) {
-            report($exception);
-
-            return response()->json([
-                'success' => false,
-
-                'message' =>
-                    'Unable to complete the product moderation decision.',
-
-                'data' => null,
-            ], 500);
-        }
-    }
-
-    /**
-     * Apply a moderation decision to the product.
-     */
-    private function applyDecision(
-        Product $product,
-        string $actionKind,
-        ?string $reason,
-        ?int $administratorId
-    ): void {
-        if ($actionKind === 'approve') {
-            $product->status =
-                ProductStatus::APPROVED;
-
-            $product->approved_at = now();
-
-            $product->approved_by =
-                $administratorId;
-
-            $product->rejected_at = null;
-
-            $product->rejection_reason = null;
-
-            $product->suspended_at = null;
-
-            $product->suspension_reason = null;
-
-            $product->archived_at = null;
-
-            return;
-        }
-
-        if ($actionKind === 'reject') {
-            $product->status =
-                ProductStatus::REJECTED;
-
-            $product->rejected_at = now();
-
-            $product->rejection_reason =
-                $reason;
-
-            $product->approved_at = null;
-
-            $product->approved_by = null;
-
-            $product->suspended_at = null;
-
-            $product->suspension_reason = null;
-
-            $product->archived_at = null;
-
-            return;
-        }
-
-        $product->status =
-            ProductStatus::SUSPENDED;
-
-        $product->suspended_at = now();
-
-        $product->suspension_reason =
-            $reason;
-
-        /*
-         * approved_at and approved_by are preserved so the audit
-         * record still shows who originally approved the product.
-         */
-    }
-
-    /**
-     * Return a status-transition error when an action is no
-     * longer valid inside the locked transaction.
-     */
-    private function transitionError(
-        string $actionKind,
-        ProductStatus $status
-    ): ?string {
-        if (
-            in_array(
-                $actionKind,
-                ['approve', 'reject'],
-                true
-            )
-            && $status !== ProductStatus::PENDING_REVIEW
-        ) {
-            return sprintf(
-                'Only products with pending review status may be %s.',
-                $actionKind === 'approve'
-                    ? 'approved'
-                    : 'rejected'
-            );
-        }
-
-        if (
-            $actionKind === 'suspend'
-            && $status !== ProductStatus::APPROVED
-        ) {
-            return 'Only an approved product may be suspended.';
-        }
-
-        return null;
-    }
-
-    /**
-     * Confirm that a product remains complete at approval time.
-     */
-    private function approvalReadinessError(
-        Product $product
-    ): ?string {
-        $sellerProfile = $product->sellerProfile;
-
-        if (
-            $sellerProfile === null
-            || ! $sellerProfile->isApproved()
-        ) {
-            return 'The seller business is no longer approved.';
-        }
-
-        if (
-            $product->category === null
-            || ! (bool) $product->category->is_active
-            || $product->category->trashed()
-        ) {
-            return 'The product category is inactive or unavailable.';
-        }
-
-        if (
-            $product->brand_id !== null
-            && (
-                $product->brand === null
-                || ! (bool) $product->brand->is_active
-                || $product->brand->trashed()
-            )
-        ) {
-            return 'The product brand is inactive or unavailable.';
-        }
-
-        $activeVariants = $product->variants
-            ->where('is_active', true);
-
-        if ($activeVariants->isEmpty()) {
-            return 'The product requires at least one active variant.';
-        }
-
-        if (
-            ! $activeVariants->contains(
-                static fn ($variant): bool =>
-                    (bool) $variant->is_default
-            )
-        ) {
-            return 'One active product variant must be marked as default.';
-        }
-
-        foreach ($activeVariants as $variant) {
-            if (
-                $variant->price === null
-                || (float) $variant->price->selling_price
-                    <= 0
-            ) {
-                return sprintf(
-                    'Variant "%s" does not have valid pricing.',
-                    $variant->sku
+                    reason:
+                        $moderationData[
+                            'reason'
+                        ]
                 );
-            }
 
-            if ($variant->inventoryStock === null) {
-                return sprintf(
-                    'Inventory is missing for variant "%s".',
-                    $variant->sku
-                );
-            }
-        }
+                $reviewPayload = [
+                    'product_id' =>
+                        $lockedProduct
+                            ->getKey(),
 
-        if ($product->media->isEmpty()) {
-            return 'The product requires at least one image.';
-        }
+                    'action' =>
+                        $appliedAction,
 
-        if (
-            ! $product->media->contains(
-                static fn ($media): bool =>
-                    (bool) $media->is_primary
-            )
-        ) {
-            return 'One product image must be marked as primary.';
-        }
+                    'from_status' =>
+                        $fromStatus,
 
-        return null;
-    }
+                    'to_status' =>
+                        $toStatus,
 
-    /**
-     * Build the immutable moderation snapshot.
-     *
-     * @return array<string, mixed>
-     */
-    private function moderationSnapshot(
-        Product $product
-    ): array {
-        return [
-            'product' => [
-                'public_id' =>
-                    $product->public_id,
+                    'reason' =>
+                        $moderationData[
+                            'reason'
+                        ],
 
-                'name' =>
-                    $product->name,
+                    'notes' =>
+                        $moderationData[
+                            'notes'
+                        ],
 
-                'slug' =>
-                    $product->slug,
+                    'moderation_flags' =>
+                        $moderationData[
+                            'moderation_flags'
+                        ],
 
-                'status' =>
-                    $this->productStatus($product)?->value,
+                    'is_prohibited_item' =>
+                        $moderationData[
+                            'is_prohibited_item'
+                        ],
 
-                'condition' =>
-                    $product->condition?->value
-                    ?? $product->condition,
+                    'flag_notes' =>
+                        $moderationData[
+                            'flag_notes'
+                        ],
 
-                'category_public_id' =>
-                    $product->category?->public_id,
+                    'flagged_at' =>
+                        $moderationData[
+                            'moderation_flags'
+                        ] !== []
+                            ? now()
+                            : null,
 
-                'brand_public_id' =>
-                    $product->brand?->public_id,
+                    'metadata' => [
+                        'requested_action' =>
+                            $requestedAction,
 
-                'submitted_at' =>
-                    $product->submitted_at
-                        ?->toISOString(),
+                        'applied_action' =>
+                            $appliedAction,
 
-                'approved_at' =>
-                    $product->approved_at
-                        ?->toISOString(),
+                        'action_automatically_changed' =>
+                            $requestedAction
+                            !== $appliedAction,
 
-                'rejected_at' =>
-                    $product->rejected_at
-                        ?->toISOString(),
+                        'ip_address' =>
+                            $request->ip(),
 
-                'suspended_at' =>
-                    $product->suspended_at
-                        ?->toISOString(),
-            ],
+                        'user_agent' =>
+                            $this
+                                ->nullableLimitedText(
+                                    $request
+                                        ->userAgent(),
+                                    1000
+                                ),
 
-            'seller' => [
-                'public_id' =>
-                    $product->sellerProfile?->public_id,
+                        'moderated_at' =>
+                            now()->toISOString(),
+                    ],
+                ];
 
-                'legal_business_name' =>
-                    $product->sellerProfile
-                        ?->legal_business_name,
+                $moderatorColumn =
+                    $this
+                        ->moderatorForeignKeyColumn();
 
-                'trading_name' =>
-                    $product->sellerProfile
-                        ?->trading_name,
-            ],
+                if (
+                    $moderatorColumn
+                    !== null
+                ) {
+                    $reviewPayload[
+                        $moderatorColumn
+                    ] = $moderator
+                        ->getKey();
+                }
 
-            'variants' =>
-                $product->variants
-                    ->map(
-                        static function ($variant): array {
-                            return [
-                                'public_id' =>
-                                    $variant->public_id,
+                $review =
+                    ProductModerationReview::query()
+                        ->create(
+                            $reviewPayload
+                        );
 
-                                'sku' =>
-                                    $variant->sku,
+                return [
+                    'product' =>
+                        $lockedProduct,
 
-                                'name' =>
-                                    $variant->name,
+                    'review' =>
+                        $review,
 
-                                'is_default' =>
-                                    (bool) $variant->is_default,
+                    'requested_action' =>
+                        $requestedAction,
 
-                                'is_active' =>
-                                    (bool) $variant->is_active,
-
-                                'price' =>
-                                    $variant->price !== null
-                                        ? [
-                                            'currency' =>
-                                                $variant
-                                                    ->price
-                                                    ->currency,
-
-                                            'selling_price' =>
-                                                $variant
-                                                    ->price
-                                                    ->selling_price,
-
-                                            'compare_at_price' =>
-                                                $variant
-                                                    ->price
-                                                    ->compare_at_price,
-                                        ]
-                                        : null,
-
-                                'inventory' =>
-                                    $variant
-                                        ->inventoryStock !== null
-                                            ? [
-                                                'quantity_on_hand' =>
-                                                    (int) $variant
-                                                        ->inventoryStock
-                                                        ->quantity_on_hand,
-
-                                                'quantity_reserved' =>
-                                                    (int) $variant
-                                                        ->inventoryStock
-                                                        ->quantity_reserved,
-
-                                                'allow_backorder' =>
-                                                    (bool) $variant
-                                                        ->inventoryStock
-                                                        ->allow_backorder,
-                                            ]
-                                            : null,
-                            ];
-                        }
-                    )
-                    ->values()
-                    ->all(),
-
-            'media' => [
-                'count' =>
-                    $product->media->count(),
-
-                'primary_public_id' =>
-                    $product->media
-                        ->firstWhere(
-                            'is_primary',
-                            true
-                        )
-                        ?->public_id,
-            ],
-        ];
-    }
-
-    /**
-     * Load relationships needed to build an audit snapshot.
-     */
-    private function loadSnapshotRelations(
-        Product $product
-    ): void {
-        $product->load([
-            'sellerProfile',
-
-            'category',
-
-            'brand',
-
-            'variants' => function (
-                $variantQuery
-            ): void {
-                $variantQuery
-                    ->with([
-                        'price',
-                        'inventoryStock',
-                    ])
-                    ->orderByDesc('is_default')
-                    ->orderBy('sort_order')
-                    ->orderBy('id');
+                    'applied_action' =>
+                        $appliedAction,
+                ];
             },
-
-            'media' => function (
-                $mediaQuery
-            ): void {
-                $mediaQuery
-                    ->orderByDesc('is_primary')
-                    ->orderBy('sort_order')
-                    ->orderBy('id');
-            },
-        ]);
-    }
-
-    /**
-     * Load complete relationships for the administrator resource.
-     */
-    private function loadCompleteProduct(
-        Product $product
-    ): void {
-        $product->load([
-            'sellerProfile',
-
-            'category',
-
-            'brand',
-
-            'createdBy',
-
-            'updatedBy',
-
-            'approvedBy',
-
-            'variants' => function (
-                $variantQuery
-            ): void {
-                $variantQuery
-                    ->with([
-                        'price',
-
-                        'inventoryStock',
-
-                        'media.variant',
-                    ])
-                    ->orderByDesc('is_default')
-                    ->orderBy('sort_order')
-                    ->orderBy('id');
-            },
-
-            'media' => function (
-                $mediaQuery
-            ): void {
-                $mediaQuery
-                    ->with('variant')
-                    ->orderByDesc('is_primary')
-                    ->orderBy('sort_order')
-                    ->orderBy('id');
-            },
-
-            'moderationReviews' => function (
-                $reviewQuery
-            ): void {
-                $reviewQuery
-                    ->with('reviewedBy')
-                    ->orderByDesc('created_at')
-                    ->orderByDesc('id');
-            },
-        ]);
-
-        $product->loadCount([
-            'variants',
-            'activeVariants',
-            'media',
-            'moderationReviews',
-        ]);
-    }
-
-    /**
-     * Resolve a moderation action into a controller operation.
-     */
-    private function actionKind(
-        ProductModerationAction $action
-    ): ?string {
-        $identity = strtolower(
-            $action->name.' '.$action->value
+            3
         );
 
-        if (str_contains($identity, 'approv')) {
-            return 'approve';
-        }
+        /** @var Product $moderatedProduct */
+        $moderatedProduct =
+            $result['product'];
 
-        if (str_contains($identity, 'reject')) {
-            return 'reject';
-        }
+        /** @var ProductModerationReview $review */
+        $review =
+            $result['review'];
 
-        if (str_contains($identity, 'suspend')) {
-            return 'suspend';
-        }
+        $this->loadModerationProduct(
+            $moderatedProduct
+        );
 
-        return null;
+        $review->load([
+            'moderator:id,public_id,name,email',
+        ]);
+
+        return response()->json([
+            'success' =>
+                true,
+
+            'message' =>
+                $this->moderationMessage(
+                    $result[
+                        'applied_action'
+                    ],
+                    $result[
+                        'requested_action'
+                    ]
+                ),
+
+            'data' => (
+                new SellerProductResource(
+                    $moderatedProduct
+                )
+            )->resolve($request),
+
+            'moderation_review' =>
+                $this
+                    ->moderationReviewData(
+                        $review
+                    ),
+        ]);
     }
 
-    /**
-     * Resolve the product status safely.
-     */
-    private function productStatus(
-        Product $product
-    ): ?ProductStatus {
-        if ($product->status instanceof ProductStatus) {
-            return $product->status;
-        }
-
-        if (is_string($product->status)) {
-            return ProductStatus::tryFrom(
-                $product->status
-            );
-        }
-
-        return null;
-    }
+    /*
+    |--------------------------------------------------------------------------
+    | Product lifecycle transitions
+    |--------------------------------------------------------------------------
+    */
 
     /**
-     * Return the moderation result message.
+     * Automatically enforce rejection or suspension for prohibited items.
      */
-    private function successMessage(
-        string $actionKind
+    private function resolveAppliedAction(
+        string $requestedAction,
+        string $currentStatus,
+        bool $requiresRejection
     ): string {
-        return match ($actionKind) {
-            'approve' =>
-                'Product approved successfully.',
+        if (!$requiresRejection) {
+            return $requestedAction;
+        }
 
-            'reject' =>
-                'Product rejected successfully.',
+        return match ($currentStatus) {
+            'pending_review' =>
+                'reject',
 
-            'suspend' =>
-                'Product suspended successfully.',
+            'approved' =>
+                'suspend',
 
             default =>
-                'Product moderation completed successfully.',
+                $requestedAction,
         };
     }
 
     /**
-     * Determine whether the authenticated user is an administrator.
+     * Resolve and validate the resulting product status.
      */
-    private function isAdministrator(
+    private function targetStatus(
+        string $currentStatus,
+        string $action
+    ): string {
+        $targetStatus = match ($action) {
+            'approve' =>
+                $currentStatus ===
+                    'pending_review'
+                    ? 'approved'
+                    : null,
+
+            'reject' =>
+                $currentStatus ===
+                    'pending_review'
+                    ? 'rejected'
+                    : null,
+
+            'suspend' =>
+                $currentStatus ===
+                    'approved'
+                    ? 'suspended'
+                    : null,
+
+            'return_to_draft' =>
+                in_array(
+                    $currentStatus,
+                    [
+                        'pending_review',
+                        'approved',
+                        'rejected',
+                        'suspended',
+                    ],
+                    true
+                )
+                    ? 'draft'
+                    : null,
+
+            default =>
+                null,
+        };
+
+        if ($targetStatus === null) {
+            $this->transitionConflict(
+                currentStatus:
+                    $currentStatus,
+                action:
+                    $action
+            );
+        }
+
+        return $targetStatus;
+    }
+
+    /**
+     * Update the product lifecycle fields for one moderation decision.
+     */
+    private function applyProductDecision(
+        Product $product,
+        string $action,
+        string $toStatus,
+        User $moderator,
+        ?string $reason
+    ): void {
+        $now = now();
+
+        $values = [
+            'status' =>
+                $toStatus,
+        ];
+
+        if ($action === 'approve') {
+            $values = array_merge(
+                $values,
+                [
+                    'approved_at' =>
+                        $now,
+
+                    'approved_by' =>
+                        $moderator
+                            ->getKey(),
+
+                    'rejected_at' =>
+                        null,
+
+                    'rejected_by' =>
+                        null,
+
+                    'rejection_reason' =>
+                        null,
+
+                    'suspended_at' =>
+                        null,
+
+                    'suspended_by' =>
+                        null,
+
+                    'suspension_reason' =>
+                        null,
+
+                    'archived_at' =>
+                        null,
+                ]
+            );
+        }
+
+        if ($action === 'reject') {
+            $values = array_merge(
+                $values,
+                [
+                    'approved_at' =>
+                        null,
+
+                    'approved_by' =>
+                        null,
+
+                    'rejected_at' =>
+                        $now,
+
+                    'rejected_by' =>
+                        $moderator
+                            ->getKey(),
+
+                    'rejection_reason' =>
+                        $reason,
+
+                    'suspended_at' =>
+                        null,
+
+                    'suspended_by' =>
+                        null,
+
+                    'suspension_reason' =>
+                        null,
+
+                    'archived_at' =>
+                        null,
+                ]
+            );
+        }
+
+        if ($action === 'suspend') {
+            $values = array_merge(
+                $values,
+                [
+                    'suspended_at' =>
+                        $now,
+
+                    'suspended_by' =>
+                        $moderator
+                            ->getKey(),
+
+                    'suspension_reason' =>
+                        $reason,
+
+                    'archived_at' =>
+                        null,
+                ]
+            );
+        }
+
+        if (
+            $action ===
+            'return_to_draft'
+        ) {
+            $values = array_merge(
+                $values,
+                [
+                    'submitted_at' =>
+                        null,
+
+                    'approved_at' =>
+                        null,
+
+                    'approved_by' =>
+                        null,
+
+                    'rejected_at' =>
+                        null,
+
+                    'rejected_by' =>
+                        null,
+
+                    'rejection_reason' =>
+                        null,
+
+                    'suspended_at' =>
+                        null,
+
+                    'suspended_by' =>
+                        null,
+
+                    'suspension_reason' =>
+                        null,
+
+                    'archived_at' =>
+                        null,
+                ]
+            );
+        }
+
+        $this->setExistingProductAttributes(
+            $product,
+            $values
+        );
+
+        $product->save();
+    }
+
+    /**
+     * Throw a standard invalid-transition response.
+     */
+    private function transitionConflict(
+        string $currentStatus,
+        string $action
+    ): never {
+        throw new HttpResponseException(
+            response()->json([
+                'success' =>
+                    false,
+
+                'message' =>
+                    'The requested moderation transition is not allowed.',
+
+                'errors' => [
+                    'action' => [
+                        sprintf(
+                            'The action "%s" cannot be applied while the product status is "%s".',
+                            $action,
+                            $currentStatus
+                        ),
+                    ],
+                ],
+            ], 409)
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Authorization
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Ensure the authenticated user is an administrator.
+     */
+    private function authorizeAdministrator(
         Request $request
-    ): bool {
+    ): User {
         $user = $request->user();
 
-        return $user !== null
-            && $user->hasAnyRole([
-                'admin',
-                'superadmin',
-            ]);
+        abort_unless(
+            $user instanceof User,
+            401,
+            'Authentication is required.'
+        );
+
+        $allowedRoles = [
+            'admin',
+            'superadmin',
+            'super_admin',
+        ];
+
+        if (
+            method_exists(
+                $user,
+                'hasAnyRole'
+            )
+        ) {
+            try {
+                if (
+                    $user->hasAnyRole(
+                        $allowedRoles
+                    )
+                ) {
+                    return $user;
+                }
+            } catch (Throwable) {
+                // Continue with other supported role checks.
+            }
+        }
+
+        if (
+            method_exists(
+                $user,
+                'hasRole'
+            )
+        ) {
+            foreach (
+                $allowedRoles
+                as $role
+            ) {
+                try {
+                    if (
+                        $user->hasRole(
+                            $role
+                        )
+                    ) {
+                        return $user;
+                    }
+                } catch (Throwable) {
+                    break;
+                }
+            }
+        }
+
+        $directRole =
+            $this->statusValue(
+                $user->getAttribute(
+                    'role'
+                )
+            );
+
+        if (
+            in_array(
+                $directRole,
+                $allowedRoles,
+                true
+            )
+        ) {
+            return $user;
+        }
+
+        if (
+            method_exists(
+                $user,
+                'roles'
+            )
+        ) {
+            try {
+                $hasRole =
+                    $user->roles()
+                        ->whereIn(
+                            'name',
+                            $allowedRoles
+                        )
+                        ->exists();
+
+                if ($hasRole) {
+                    return $user;
+                }
+            } catch (Throwable) {
+                // Return the standard forbidden response below.
+            }
+        }
+
+        abort(
+            403,
+            'Administrator access is required.'
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Query filters
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Apply administrator product search.
+     *
+     * @param Builder<Product> $query
+     */
+    private function applySearch(
+        Builder $query,
+        ?string $search
+    ): void {
+        $search = trim(
+            (string) $search
+        );
+
+        if ($search === '') {
+            return;
+        }
+
+        $escapedSearch =
+            addcslashes(
+                $search,
+                '\\%_'
+            );
+
+        $like =
+            "%{$escapedSearch}%";
+
+        $query->where(
+            static function (
+                Builder $searchQuery
+            ) use ($like): void {
+                $searchQuery
+                    ->where(
+                        'name',
+                        'like',
+                        $like
+                    )
+                    ->orWhere(
+                        'slug',
+                        'like',
+                        $like
+                    )
+                    ->orWhere(
+                        'model_number',
+                        'like',
+                        $like
+                    )
+                    ->orWhereHas(
+                        'category',
+                        static function (
+                            Builder $categoryQuery
+                        ) use ($like): void {
+                            $categoryQuery
+                                ->where(
+                                    'name',
+                                    'like',
+                                    $like
+                                );
+                        }
+                    )
+                    ->orWhereHas(
+                        'brand',
+                        static function (
+                            Builder $brandQuery
+                        ) use ($like): void {
+                            $brandQuery
+                                ->where(
+                                    'name',
+                                    'like',
+                                    $like
+                                );
+                        }
+                    )
+                    ->orWhereHas(
+                        'sellerProfile',
+                        static function (
+                            Builder $sellerQuery
+                        ) use ($like): void {
+                            $sellerQuery
+                                ->where(
+                                    'legal_business_name',
+                                    'like',
+                                    $like
+                                )
+                                ->orWhere(
+                                    'trading_name',
+                                    'like',
+                                    $like
+                                );
+                        }
+                    );
+            }
+        );
     }
 
     /**
-     * Standard administrator permission response.
+     * Filter products by whether moderation flags exist.
+     *
+     * @param Builder<Product> $query
      */
-    private function forbiddenResponse(): JsonResponse
-    {
-        return response()->json([
-            'success' => false,
+    private function applyFlaggedFilter(
+        Builder $query,
+        bool $flagged
+    ): void {
+        $constraint =
+            static function (
+                Builder $reviewQuery
+            ): void {
+                $reviewQuery
+                    ->whereNotNull(
+                        'moderation_flags'
+                    )
+                    ->whereNotNull(
+                        'flagged_at'
+                    );
+            };
 
-            'message' =>
-                'You are not allowed to moderate products.',
+        if ($flagged) {
+            $query->whereHas(
+                'moderationReviews',
+                $constraint
+            );
 
-            'data' => null,
-        ], 403);
+            return;
+        }
+
+        $query->whereDoesntHave(
+            'moderationReviews',
+            $constraint
+        );
     }
 
     /**
-     * Safe product-not-found response.
+     * Filter products by prohibited-item classification.
+     *
+     * @param Builder<Product> $query
      */
-    private function productNotFoundResponse(): JsonResponse
+    private function applyProhibitedFilter(
+        Builder $query,
+        bool $prohibited
+    ): void {
+        $constraint =
+            static function (
+                Builder $reviewQuery
+            ): void {
+                $reviewQuery->where(
+                    'is_prohibited_item',
+                    true
+                );
+            };
+
+        if ($prohibited) {
+            $query->whereHas(
+                'moderationReviews',
+                $constraint
+            );
+
+            return;
+        }
+
+        $query->whereDoesntHave(
+            'moderationReviews',
+            $constraint
+        );
+    }
+
+    /**
+     * Apply deterministic administrator sorting.
+     *
+     * @param Builder<Product> $query
+     */
+    private function applySorting(
+        Builder $query,
+        string $sort
+    ): void {
+        match ($sort) {
+            'oldest' =>
+                $query
+                    ->orderBy(
+                        'created_at'
+                    )
+                    ->orderBy('id'),
+
+            'submitted_oldest' =>
+                $query
+                    ->orderByRaw(
+                        'submitted_at IS NULL'
+                    )
+                    ->orderBy(
+                        'submitted_at'
+                    )
+                    ->orderBy('id'),
+
+            'name_asc' =>
+                $query
+                    ->orderBy('name')
+                    ->orderBy('id'),
+
+            'name_desc' =>
+                $query
+                    ->orderByDesc('name')
+                    ->orderByDesc('id'),
+
+            'newest' =>
+                $query
+                    ->orderByDesc(
+                        'created_at'
+                    )
+                    ->orderByDesc('id'),
+
+            default =>
+                $query
+                    ->orderByRaw(
+                        'submitted_at IS NULL'
+                    )
+                    ->orderByDesc(
+                        'submitted_at'
+                    )
+                    ->orderByDesc('id'),
+        };
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Data loading and output
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Load relationships required for administrator moderation.
+     */
+    private function loadModerationProduct(
+        Product $product
+    ): void {
+        $product->loadMissing([
+            'category',
+            'brand',
+            'sellerProfile',
+            'variants.price',
+            'variants.inventoryStock',
+            'media.variant',
+            'returnPolicy',
+            'activeReturnPolicy',
+        ]);
+    }
+
+    /**
+     * Transform a review into administrator audit data.
+     *
+     * @return array<string, mixed>
+     */
+    private function moderationReviewData(
+        ProductModerationReview $review
+    ): array {
+        $data =
+            $review->toAuditData();
+
+        $moderator =
+            $review->relationLoaded(
+                'moderator'
+            )
+                ? $review->moderator
+                : null;
+
+        $data['moderator'] =
+            $moderator instanceof User
+                ? [
+                    'public_id' =>
+                        (string) $moderator
+                            ->public_id,
+
+                    'name' =>
+                        $moderator->name,
+
+                    'email' =>
+                        $moderator->email,
+                ]
+                : null;
+
+        return $data;
+    }
+
+    /**
+     * Return a moderation success message.
+     */
+    private function moderationMessage(
+        string $appliedAction,
+        string $requestedAction
+    ): string {
+        if (
+            $appliedAction !==
+            $requestedAction
+        ) {
+            return match (
+                $appliedAction
+            ) {
+                'reject' =>
+                    'The product was automatically rejected because prohibited-item flags were selected.',
+
+                'suspend' =>
+                    'The product was automatically suspended because prohibited-item flags were selected.',
+
+                default =>
+                    'The product moderation decision was applied successfully.',
+            };
+        }
+
+        return match (
+            $appliedAction
+        ) {
+            'approve' =>
+                'The product was approved successfully.',
+
+            'reject' =>
+                'The product was rejected successfully.',
+
+            'suspend' =>
+                'The product was suspended successfully.',
+
+            'return_to_draft' =>
+                'The product was returned to draft successfully.',
+
+            default =>
+                'The product moderation decision was applied successfully.',
+        };
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Schema compatibility
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Set only product attributes that exist in the current schema.
+     *
+     * @param array<string, mixed> $values
+     */
+    private function setExistingProductAttributes(
+        Product $product,
+        array $values
+    ): void {
+        foreach (
+            $values
+            as $column => $value
+        ) {
+            if (
+                $column === 'status'
+                || Schema::hasColumn(
+                    $product->getTable(),
+                    $column
+                )
+            ) {
+                $product->setAttribute(
+                    $column,
+                    $value
+                );
+            }
+        }
+    }
+
+    /**
+     * Resolve the moderator foreign-key column from the current schema.
+     */
+    private function moderatorForeignKeyColumn():
+        ?string
     {
-        return response()->json([
-            'success' => false,
+        $table =
+            'product_moderation_reviews';
 
-            'message' =>
-                'The requested product was not found.',
+        $candidates = [
+            'moderator_id',
+            'moderated_by',
+            'reviewer_id',
+            'reviewed_by',
+            'admin_user_id',
+            'created_by',
+        ];
 
-            'data' => null,
-        ], 404);
+        foreach (
+            $candidates
+            as $column
+        ) {
+            if (
+                Schema::hasColumn(
+                    $table,
+                    $column
+                )
+            ) {
+                return $column;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Convert an enum or scalar into a normalized string.
+     */
+    private function statusValue(
+        mixed $value
+    ): string {
+        if ($value instanceof BackedEnum) {
+            return strtolower(
+                trim(
+                    (string) $value->value
+                )
+            );
+        }
+
+        return strtolower(
+            trim(
+                (string) $value
+            )
+        );
+    }
+
+    /**
+     * Normalize optional text and limit its length.
+     */
+    private function nullableLimitedText(
+        mixed $value,
+        int $maximumLength
+    ): ?string {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim(
+            (string) $value
+        );
+
+        if ($value === '') {
+            return null;
+        }
+
+        return Str::limit(
+            $value,
+            $maximumLength,
+            ''
+        );
     }
 }
