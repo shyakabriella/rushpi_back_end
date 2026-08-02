@@ -121,7 +121,11 @@ final class SellerProductSubmissionTest extends TestCase
         [
             'seller' => $seller,
             'product' => $product,
+            'definition' => $definition,
         ] = $this->createBaseProduct();
+
+        $specificationCode =
+            (string) $definition->code;
 
         $variant = $this->createVariant($product);
 
@@ -232,7 +236,11 @@ final class SellerProductSubmissionTest extends TestCase
         [
             'seller' => $seller,
             'product' => $product,
+            'definition' => $definition,
         ] = $this->createBaseProduct();
+
+        $specificationCode =
+            (string) $definition->code;
 
         $variant = $this->createVariant($product);
 
@@ -282,7 +290,9 @@ final class SellerProductSubmissionTest extends TestCase
 
         $this->assertSame(
             16,
-            $product->specifications['ram']
+            $product->specifications[
+                $specificationCode
+            ]
         );
     }
 
