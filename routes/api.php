@@ -13,6 +13,7 @@ use App\Http\Controllers\API\V1\Public\CatalogController;
 use App\Http\Controllers\API\V1\Seller\InventoryController;
 use App\Http\Controllers\API\V1\Seller\ProductController;
 use App\Http\Controllers\API\V1\Seller\ProductMediaController;
+use App\Http\Controllers\API\V1\Seller\ProductReturnPolicyController;
 use App\Http\Controllers\API\V1\Seller\ProductVariantController;
 use App\Http\Controllers\API\V1\Seller\ProductVariantPriceController;
 use App\Http\Controllers\API\V1\Seller\SellerDocumentController;
@@ -24,6 +25,9 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 | System routes
 |--------------------------------------------------------------------------
+|
+| Monitoring services may call these endpoints without authentication.
+|
 */
 
 Route::prefix('v1/system')
@@ -51,12 +55,16 @@ Route::controller(RegisterController::class)
         Route::post(
             'register',
             'register'
-        )->name('api.auth.register');
+        )
+            ->middleware('throttle:20,1')
+            ->name('api.auth.register');
 
         Route::post(
             'login',
             'login'
-        )->name('api.auth.login');
+        )
+            ->middleware('throttle:20,1')
+            ->name('api.auth.login');
     });
 
 /*
@@ -66,7 +74,7 @@ Route::controller(RegisterController::class)
 |
 | These endpoints require no login.
 |
-| Only approved products belonging to approved sellers are returned.
+| Only approved products belonging to approved seller profiles are returned.
 | Private seller information, cost prices and moderation notes are excluded.
 |
 */
@@ -156,6 +164,10 @@ Route::middleware('auth:sanctum')
                 |--------------------------------------------------------------------------
                 | Seller profile onboarding
                 |--------------------------------------------------------------------------
+                |
+                | These routes remain available before seller approval because
+                | sellers need them to create and complete their applications.
+                |
                 */
 
                 Route::get(
@@ -166,7 +178,9 @@ Route::middleware('auth:sanctum')
                 Route::post(
                     'profiles',
                     [SellerProfileController::class, 'store']
-                )->name('profiles.store');
+                )
+                    ->middleware('throttle:20,1')
+                    ->name('profiles.store');
 
                 Route::get(
                     'profiles/{sellerProfile:public_id}',
@@ -217,7 +231,9 @@ Route::middleware('auth:sanctum')
                     .'/applications/{sellerApplication:public_id}'
                     .'/documents/{sellerDocument:public_id}',
                     [SellerDocumentController::class, 'destroy']
-                )->name('applications.documents.destroy');
+                )
+                    ->middleware('throttle:20,1')
+                    ->name('applications.documents.destroy');
 
                 /*
                 |--------------------------------------------------------------------------
@@ -238,6 +254,9 @@ Route::middleware('auth:sanctum')
                 |--------------------------------------------------------------------------
                 | Approved seller selling routes
                 |--------------------------------------------------------------------------
+                |
+                | Only approved seller profiles may access this group.
+                |
                 */
 
                 Route::prefix(
@@ -275,6 +294,76 @@ Route::middleware('auth:sanctum')
                         )
                             ->middleware('throttle:10,1')
                             ->name('products.submit');
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Product return policy
+                        |--------------------------------------------------------------------------
+                        |
+                        | Each product may contain one return policy.
+                        |
+                        | Updating or deleting a policy attached to an approved
+                        | or rejected product returns the product to draft.
+                        |
+                        */
+
+                        Route::get(
+                            'products/{product:public_id}/return-policy',
+                            [
+                                ProductReturnPolicyController::class,
+                                'show',
+                            ]
+                        )->name(
+                            'products.return-policy.show'
+                        );
+
+                        Route::post(
+                            'products/{product:public_id}/return-policy',
+                            [
+                                ProductReturnPolicyController::class,
+                                'upsert',
+                            ]
+                        )
+                            ->middleware('throttle:20,1')
+                            ->name(
+                                'products.return-policy.store'
+                            );
+
+                        Route::put(
+                            'products/{product:public_id}/return-policy',
+                            [
+                                ProductReturnPolicyController::class,
+                                'upsert',
+                            ]
+                        )
+                            ->middleware('throttle:30,1')
+                            ->name(
+                                'products.return-policy.update'
+                            );
+
+                        Route::patch(
+                            'products/{product:public_id}/return-policy',
+                            [
+                                ProductReturnPolicyController::class,
+                                'upsert',
+                            ]
+                        )
+                            ->middleware('throttle:30,1')
+                            ->name(
+                                'products.return-policy.patch'
+                            );
+
+                        Route::delete(
+                            'products/{product:public_id}/return-policy',
+                            [
+                                ProductReturnPolicyController::class,
+                                'destroy',
+                            ]
+                        )
+                            ->middleware('throttle:20,1')
+                            ->name(
+                                'products.return-policy.destroy'
+                            );
 
                         /*
                         |--------------------------------------------------------------------------
@@ -327,9 +416,11 @@ Route::middleware('auth:sanctum')
                                 ProductVariantPriceController::class,
                                 'update',
                             ]
-                        )->name(
-                            'products.variants.price.update'
-                        );
+                        )
+                            ->middleware('throttle:30,1')
+                            ->name(
+                                'products.variants.price.update'
+                            );
 
                         Route::patch(
                             'products/{product:public_id}'
@@ -338,9 +429,11 @@ Route::middleware('auth:sanctum')
                                 ProductVariantPriceController::class,
                                 'update',
                             ]
-                        )->name(
-                            'products.variants.price.patch'
-                        );
+                        )
+                            ->middleware('throttle:30,1')
+                            ->name(
+                                'products.variants.price.patch'
+                            );
 
                         /*
                         |--------------------------------------------------------------------------
@@ -381,9 +474,11 @@ Route::middleware('auth:sanctum')
                                 InventoryController::class,
                                 'updateSettings',
                             ]
-                        )->name(
-                            'products.variants.inventory.settings.update'
-                        );
+                        )
+                            ->middleware('throttle:30,1')
+                            ->name(
+                                'products.variants.inventory.settings.update'
+                            );
 
                         Route::patch(
                             'products/{product:public_id}'
@@ -393,9 +488,11 @@ Route::middleware('auth:sanctum')
                                 InventoryController::class,
                                 'updateSettings',
                             ]
-                        )->name(
-                            'products.variants.inventory.settings.patch'
-                        );
+                        )
+                            ->middleware('throttle:30,1')
+                            ->name(
+                                'products.variants.inventory.settings.patch'
+                            );
 
                         Route::get(
                             'products/{product:public_id}'
@@ -421,7 +518,9 @@ Route::middleware('auth:sanctum')
                                 ProductMediaController::class,
                                 'index',
                             ]
-                        )->name('products.media.index');
+                        )->name(
+                            'products.media.index'
+                        );
 
                         Route::post(
                             'products/{product:public_id}/media',
@@ -431,11 +530,13 @@ Route::middleware('auth:sanctum')
                             ]
                         )
                             ->middleware('throttle:20,1')
-                            ->name('products.media.store');
+                            ->name(
+                                'products.media.store'
+                            );
 
                         /*
-                         * Keep this fixed path before routes containing
-                         * the dynamic {media} route parameter.
+                         * This fixed route must remain before routes containing
+                         * the dynamic {media} parameter.
                          */
 
                         Route::patch(
@@ -444,7 +545,11 @@ Route::middleware('auth:sanctum')
                                 ProductMediaController::class,
                                 'reorder',
                             ]
-                        )->name('products.media.reorder');
+                        )
+                            ->middleware('throttle:30,1')
+                            ->name(
+                                'products.media.reorder'
+                            );
 
                         Route::patch(
                             'products/{product:public_id}'
@@ -453,7 +558,11 @@ Route::middleware('auth:sanctum')
                                 ProductMediaController::class,
                                 'setPrimary',
                             ]
-                        )->name('products.media.primary');
+                        )
+                            ->middleware('throttle:30,1')
+                            ->name(
+                                'products.media.primary'
+                            );
 
                         Route::delete(
                             'products/{product:public_id}'
@@ -462,7 +571,11 @@ Route::middleware('auth:sanctum')
                                 ProductMediaController::class,
                                 'destroy',
                             ]
-                        )->name('products.media.destroy');
+                        )
+                            ->middleware('throttle:20,1')
+                            ->name(
+                                'products.media.destroy'
+                            );
                     });
             });
 
@@ -470,6 +583,10 @@ Route::middleware('auth:sanctum')
         |--------------------------------------------------------------------------
         | Administrator routes
         |--------------------------------------------------------------------------
+        |
+        | The administrator controllers, policies or middleware must verify
+        | that the authenticated account has administrator permissions.
+        |
         */
 
         Route::prefix('admin')
@@ -477,28 +594,20 @@ Route::middleware('auth:sanctum')
             ->group(function (): void {
                 /*
                 |--------------------------------------------------------------------------
-                | Catalog administration
+                | Specification definitions
                 |--------------------------------------------------------------------------
+                |
+                | Reusable definitions such as RAM, storage, processor,
+                | screen size, color and connectivity are managed here.
+                |
                 */
 
-                Route::apiResource(
-                    'categories',
-                    CategoryController::class
-                );
-
-                Route::apiResource(
-                    'brands',
-                    BrandController::class
-                );
-
-                /*
-                |--------------------------------------------------------------------------
-                | Specification definition administration
-                |--------------------------------------------------------------------------
-                */
-
-                Route::prefix('specification-definitions')
-                    ->name('specification-definitions.')
+                Route::prefix(
+                    'specification-definitions'
+                )
+                    ->name(
+                        'specification-definitions.'
+                    )
                     ->controller(
                         SpecificationDefinitionController::class
                     )
@@ -516,8 +625,8 @@ Route::middleware('auth:sanctum')
                             ->name('store');
 
                         /*
-                         * Fixed action routes must remain before the
-                         * dynamic specification-definition route.
+                         * Keep fixed action routes before the dynamic
+                         * specification-definition route.
                          */
 
                         Route::patch(
@@ -542,50 +651,51 @@ Route::middleware('auth:sanctum')
                         Route::put(
                             '/{specificationDefinition:public_id}',
                             'update'
-                        )->name('update');
+                        )
+                            ->middleware('throttle:30,1')
+                            ->name('update');
 
                         Route::patch(
                             '/{specificationDefinition:public_id}',
                             'update'
-                        )->name('patch');
+                        )
+                            ->middleware('throttle:30,1')
+                            ->name('patch');
 
                         Route::delete(
                             '/{specificationDefinition:public_id}',
                             'destroy'
-                        )->name('destroy');
+                        )
+                            ->middleware('throttle:20,1')
+                            ->name('destroy');
                     });
 
                 /*
                 |--------------------------------------------------------------------------
-                | Category specification administration
+                | Category specification assignments
                 |--------------------------------------------------------------------------
                 |
-                | These endpoints assign reusable specification definitions
-                | to categories and configure whether they are required,
-                | filterable, variant attributes or category-specific fields.
+                | The controller checks that each assignment belongs to the
+                | category in the route. scopeBindings() is intentionally not
+                | used because the Category relationship is named
+                | specificationAssignments.
                 |
                 */
 
                 Route::prefix(
                     'categories/{category:public_id}/specifications'
                 )
-                    ->name('categories.specifications.')
+                    ->name(
+                        'categories.specifications.'
+                    )
                     ->controller(
                         CategorySpecificationController::class
                     )
                     ->group(function (): void {
-                        /*
-                         * List direct assignments for the selected category.
-                         */
-
                         Route::get(
                             '/',
                             'index'
                         )->name('index');
-
-                        /*
-                         * Assign a reusable specification to the category.
-                         */
 
                         Route::post(
                             '/',
@@ -595,7 +705,8 @@ Route::middleware('auth:sanctum')
                             ->name('store');
 
                         /*
-                         * Keep fixed routes before dynamic assignment routes.
+                         * Keep this fixed route before the dynamic assignment
+                         * route to prevent "reorder" being treated as a ULID.
                          */
 
                         Route::patch(
@@ -619,38 +730,58 @@ Route::middleware('auth:sanctum')
                             ->middleware('throttle:30,1')
                             ->name('deactivate');
 
-                        /*
-                         * View one category specification assignment.
-                         */
-
                         Route::get(
                             '/{categorySpecification:public_id}',
                             'show'
                         )->name('show');
 
-                        /*
-                         * Update the category-specific configuration.
-                         */
-
                         Route::put(
                             '/{categorySpecification:public_id}',
                             'update'
-                        )->name('update');
+                        )
+                            ->middleware('throttle:30,1')
+                            ->name('update');
 
                         Route::patch(
                             '/{categorySpecification:public_id}',
                             'update'
-                        )->name('patch');
-
-                        /*
-                         * Remove an unused assignment.
-                         */
+                        )
+                            ->middleware('throttle:30,1')
+                            ->name('patch');
 
                         Route::delete(
                             '/{categorySpecification:public_id}',
                             'destroy'
-                        )->name('destroy');
+                        )
+                            ->middleware('throttle:20,1')
+                            ->name('destroy');
                     });
+
+                /*
+                |--------------------------------------------------------------------------
+                | Category administration
+                |--------------------------------------------------------------------------
+                */
+
+                Route::apiResource(
+                    'categories',
+                    CategoryController::class
+                )->parameters([
+                    'categories' => 'category',
+                ]);
+
+                /*
+                |--------------------------------------------------------------------------
+                | Brand administration
+                |--------------------------------------------------------------------------
+                */
+
+                Route::apiResource(
+                    'brands',
+                    BrandController::class
+                )->parameters([
+                    'brands' => 'brand',
+                ]);
 
                 /*
                 |--------------------------------------------------------------------------
@@ -664,7 +795,9 @@ Route::middleware('auth:sanctum')
                         ProductModerationController::class,
                         'index',
                     ]
-                )->name('products.index');
+                )->name(
+                    'products.index'
+                );
 
                 Route::get(
                     'products/{product:public_id}',
@@ -672,7 +805,9 @@ Route::middleware('auth:sanctum')
                         ProductModerationController::class,
                         'show',
                     ]
-                )->name('products.show');
+                )->name(
+                    'products.show'
+                );
 
                 Route::post(
                     'products/{product:public_id}/moderate',
@@ -682,7 +817,9 @@ Route::middleware('auth:sanctum')
                     ]
                 )
                     ->middleware('throttle:30,1')
-                    ->name('products.moderate');
+                    ->name(
+                        'products.moderate'
+                    );
 
                 /*
                 |--------------------------------------------------------------------------
@@ -696,7 +833,9 @@ Route::middleware('auth:sanctum')
                         SellerVerificationController::class,
                         'index',
                     ]
-                )->name('seller-applications.index');
+                )->name(
+                    'seller-applications.index'
+                );
 
                 Route::get(
                     'seller-applications/{sellerApplication:public_id}',
@@ -704,7 +843,9 @@ Route::middleware('auth:sanctum')
                         SellerVerificationController::class,
                         'show',
                     ]
-                )->name('seller-applications.show');
+                )->name(
+                    'seller-applications.show'
+                );
 
                 Route::post(
                     'seller-applications/{sellerApplication:public_id}'
@@ -713,9 +854,11 @@ Route::middleware('auth:sanctum')
                         SellerVerificationController::class,
                         'startReview',
                     ]
-                )->name(
-                    'seller-applications.start-review'
-                );
+                )
+                    ->middleware('throttle:30,1')
+                    ->name(
+                        'seller-applications.start-review'
+                    );
 
                 Route::post(
                     'seller-applications/{sellerApplication:public_id}'
@@ -724,9 +867,11 @@ Route::middleware('auth:sanctum')
                         SellerVerificationController::class,
                         'requestInformation',
                     ]
-                )->name(
-                    'seller-applications.request-information'
-                );
+                )
+                    ->middleware('throttle:30,1')
+                    ->name(
+                        'seller-applications.request-information'
+                    );
 
                 Route::post(
                     'seller-applications/{sellerApplication:public_id}'
@@ -735,7 +880,11 @@ Route::middleware('auth:sanctum')
                         SellerVerificationController::class,
                         'approve',
                     ]
-                )->name('seller-applications.approve');
+                )
+                    ->middleware('throttle:30,1')
+                    ->name(
+                        'seller-applications.approve'
+                    );
 
                 Route::post(
                     'seller-applications/{sellerApplication:public_id}'
@@ -744,7 +893,11 @@ Route::middleware('auth:sanctum')
                         SellerVerificationController::class,
                         'reject',
                     ]
-                )->name('seller-applications.reject');
+                )
+                    ->middleware('throttle:30,1')
+                    ->name(
+                        'seller-applications.reject'
+                    );
 
                 /*
                 |--------------------------------------------------------------------------
@@ -759,9 +912,11 @@ Route::middleware('auth:sanctum')
                         SellerVerificationController::class,
                         'approveDocument',
                     ]
-                )->name(
-                    'seller-applications.documents.approve'
-                );
+                )
+                    ->middleware('throttle:30,1')
+                    ->name(
+                        'seller-applications.documents.approve'
+                    );
 
                 Route::post(
                     'seller-applications/{sellerApplication:public_id}'
@@ -770,9 +925,11 @@ Route::middleware('auth:sanctum')
                         SellerVerificationController::class,
                         'rejectDocument',
                     ]
-                )->name(
-                    'seller-applications.documents.reject'
-                );
+                )
+                    ->middleware('throttle:30,1')
+                    ->name(
+                        'seller-applications.documents.reject'
+                    );
 
                 Route::get(
                     'seller-applications/{sellerApplication:public_id}'
@@ -792,12 +949,15 @@ Route::middleware('auth:sanctum')
                 */
 
                 Route::post(
-                    'seller-profiles/{sellerProfile:public_id}'
-                    .'/suspend',
+                    'seller-profiles/{sellerProfile:public_id}/suspend',
                     [
                         SellerVerificationController::class,
                         'suspend',
                     ]
-                )->name('seller-profiles.suspend');
+                )
+                    ->middleware('throttle:20,1')
+                    ->name(
+                        'seller-profiles.suspend'
+                    );
             });
     });

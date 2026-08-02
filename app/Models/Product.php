@@ -7,26 +7,23 @@ namespace App\Models;
 use App\Enums\ProductCondition;
 use App\Enums\ProductStatus;
 use App\Enums\SellerProfileStatus;
+use BackedEnum;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Str;
 
-class Product extends Model
+final class Product extends Model
 {
     use HasFactory;
     use HasUlids;
-    use SoftDeletes;
 
     /**
-     * Attributes that may be mass assigned.
+     * Product fields that may be mass assigned.
      *
      * @var array<int, string>
      */
@@ -39,63 +36,66 @@ class Product extends Model
         'short_description',
         'description',
         'condition',
-        'warranty_months',
-        'specifications',
         'status',
-        'rejection_reason',
-        'suspension_reason',
+        'specifications',
+        'warranty_months',
         'submitted_at',
         'approved_at',
-        'rejected_at',
-        'suspended_at',
-        'archived_at',
-        'created_by',
-        'updated_by',
         'approved_by',
+        'rejected_at',
+        'rejected_by',
+        'rejection_reason',
+        'suspended_at',
+        'suspended_by',
+        'suspension_reason',
+        'archived_at',
     ];
 
     /**
-     * Attribute casts.
+     * Model attribute casts.
      *
      * @return array<string, string>
      */
     protected function casts(): array
     {
         return [
-            'seller_profile_id' => 'integer',
+            'condition' =>
+                ProductCondition::class,
 
-            'category_id' => 'integer',
+            'status' =>
+                ProductStatus::class,
 
-            'brand_id' => 'integer',
+            'specifications' =>
+                'array',
 
-            'condition' => ProductCondition::class,
+            'warranty_months' =>
+                'integer',
 
-            'warranty_months' => 'integer',
+            'submitted_at' =>
+                'datetime',
 
-            'specifications' => 'array',
+            'approved_at' =>
+                'datetime',
 
-            'status' => ProductStatus::class,
+            'rejected_at' =>
+                'datetime',
 
-            'submitted_at' => 'datetime',
+            'suspended_at' =>
+                'datetime',
 
-            'approved_at' => 'datetime',
+            'archived_at' =>
+                'datetime',
 
-            'rejected_at' => 'datetime',
+            'created_at' =>
+                'datetime',
 
-            'suspended_at' => 'datetime',
-
-            'archived_at' => 'datetime',
-
-            'created_at' => 'datetime',
-
-            'updated_at' => 'datetime',
-
-            'deleted_at' => 'datetime',
+            'updated_at' =>
+                'datetime',
         ];
     }
 
     /**
-     * Generate a ULID for the public identifier.
+     * Generate a ULID for public_id while keeping the numeric primary key.
      *
      * @return array<int, string>
      */
@@ -107,7 +107,7 @@ class Product extends Model
     }
 
     /**
-     * Use the public identifier for implicit route binding.
+     * Use the public identifier for route-model binding.
      */
     public function getRouteKeyName(): string
     {
@@ -115,14 +115,15 @@ class Product extends Model
     }
 
     /**
-     * Normalize product values before persistence.
+     * Normalize product values before saving.
      */
     protected static function booted(): void
     {
         static::creating(
             static function (Product $product): void {
                 if ($product->status === null) {
-                    $product->status = ProductStatus::DRAFT;
+                    $product->status =
+                        ProductStatus::DRAFT;
                 }
             }
         );
@@ -134,64 +135,48 @@ class Product extends Model
                 );
 
                 if (
-                    $product->slug === null
-                    || trim((string) $product->slug) === ''
+                    trim((string) $product->slug) === ''
+                    && $product->name !== ''
                 ) {
                     $product->slug = Str::slug(
                         $product->name
                     );
                 } else {
                     $product->slug = Str::slug(
-                        trim((string) $product->slug)
+                        (string) $product->slug
                     );
                 }
 
-                if ($product->short_description !== null) {
-                    $shortDescription = trim(
-                        (string) $product->short_description
+                $product->short_description =
+                    self::nullableTrim(
+                        $product->short_description
                     );
 
-                    $product->short_description =
-                        $shortDescription !== ''
-                            ? $shortDescription
-                            : null;
-                }
-
-                if ($product->description !== null) {
-                    $description = trim(
-                        (string) $product->description
+                $product->description =
+                    self::nullableTrim(
+                        $product->description
                     );
 
-                    $product->description =
-                        $description !== ''
-                            ? $description
-                            : null;
-                }
-
-                if ($product->rejection_reason !== null) {
-                    $rejectionReason = trim(
-                        (string) $product->rejection_reason
+                $product->rejection_reason =
+                    self::nullableTrim(
+                        $product->rejection_reason
                     );
 
-                    $product->rejection_reason =
-                        $rejectionReason !== ''
-                            ? $rejectionReason
-                            : null;
-                }
-
-                if ($product->suspension_reason !== null) {
-                    $suspensionReason = trim(
-                        (string) $product->suspension_reason
+                $product->suspension_reason =
+                    self::nullableTrim(
+                        $product->suspension_reason
                     );
 
-                    $product->suspension_reason =
-                        $suspensionReason !== ''
-                            ? $suspensionReason
-                            : null;
-                }
+                $product->specifications =
+                    self::normalizeSpecificationValues(
+                        $product->specifications
+                    );
 
-                if (!is_array($product->specifications)) {
-                    $product->specifications = [];
+                if (
+                    $product->warranty_months !== null
+                    && (int) $product->warranty_months < 0
+                ) {
+                    $product->warranty_months = 0;
                 }
             }
         );
@@ -199,215 +184,204 @@ class Product extends Model
 
     /*
     |--------------------------------------------------------------------------
-    | Ownership and catalog relationships
+    | Core catalog relationships
     |--------------------------------------------------------------------------
     */
 
     /**
-     * Seller profile that owns this product.
-     *
-     * @return BelongsTo<SellerProfile, $this>
+     * Seller business that owns the product.
      */
     public function sellerProfile(): BelongsTo
     {
         return $this->belongsTo(
-            SellerProfile::class,
-            'seller_profile_id'
+            SellerProfile::class
         );
     }
 
     /**
      * Product category.
-     *
-     * @return BelongsTo<Category, $this>
      */
     public function category(): BelongsTo
     {
         return $this->belongsTo(
-            Category::class,
-            'category_id'
+            Category::class
         );
     }
 
     /**
      * Optional product brand.
-     *
-     * @return BelongsTo<Brand, $this>
      */
     public function brand(): BelongsTo
     {
         return $this->belongsTo(
-            Brand::class,
-            'brand_id'
+            Brand::class
         );
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Product variants
+    | Variant relationships
     |--------------------------------------------------------------------------
     */
 
     /**
      * All product variants.
-     *
-     * @return HasMany<ProductVariant, $this>
      */
     public function variants(): HasMany
     {
         return $this->hasMany(
-            ProductVariant::class,
-            'product_id'
+            ProductVariant::class
         );
     }
 
     /**
      * Active product variants.
-     *
-     * @return HasMany<ProductVariant, $this>
      */
     public function activeVariants(): HasMany
     {
-        return $this
-            ->variants()
-            ->where('is_active', true)
-            ->orderByDesc('is_default')
-            ->orderBy('sort_order')
-            ->orderBy('id');
+        return $this->hasMany(
+            ProductVariant::class
+        )->where(
+            'is_active',
+            true
+        );
     }
 
     /**
      * Default active product variant.
-     *
-     * @return HasOne<ProductVariant, $this>
      */
     public function defaultVariant(): HasOne
     {
-        return $this
-            ->hasOne(
-                ProductVariant::class,
-                'product_id'
+        return $this->hasOne(
+            ProductVariant::class
+        )
+            ->where(
+                'is_active',
+                true
             )
-            ->where('is_active', true)
-            ->where('is_default', true);
+            ->where(
+                'is_default',
+                true
+            );
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Product media
+    | Media relationships
     |--------------------------------------------------------------------------
     */
 
     /**
-     * Product media records.
-     *
-     * @return HasMany<ProductMedia, $this>
+     * All media attached to the product.
      */
     public function media(): HasMany
     {
-        return $this
-            ->hasMany(
-                ProductMedia::class,
-                'product_id'
+        return $this->hasMany(
+            ProductMedia::class
+        );
+    }
+
+    /**
+     * Primary product media.
+     */
+    public function primaryMedia(): HasOne
+    {
+        return $this->hasOne(
+            ProductMedia::class
+        )
+            ->where(
+                'is_primary',
+                true
             )
-            ->orderByDesc('is_primary')
             ->orderBy('sort_order')
             ->orderBy('id');
     }
 
-    /**
-     * Primary product image.
-     *
-     * @return HasOne<ProductMedia, $this>
-     */
-    public function primaryMedia(): HasOne
-    {
-        return $this
-            ->hasOne(
-                ProductMedia::class,
-                'product_id'
-            )
-            ->where('is_primary', true);
-    }
-
     /*
     |--------------------------------------------------------------------------
-    | Product moderation
+    | Moderation relationships
     |--------------------------------------------------------------------------
     */
 
     /**
-     * Product moderation history.
-     *
-     * @return HasMany<ProductModerationReview, $this>
+     * Complete moderation history.
      */
     public function moderationReviews(): HasMany
     {
-        return $this
-            ->hasMany(
-                ProductModerationReview::class,
-                'product_id'
-            )
-            ->latest('id');
+        return $this->hasMany(
+            ProductModerationReview::class
+        );
     }
 
     /**
-     * Latest product moderation review.
-     *
-     * @return HasOne<ProductModerationReview, $this>
+     * Latest moderation review.
      */
     public function latestModerationReview(): HasOne
     {
-        return $this
-            ->hasOne(
-                ProductModerationReview::class,
-                'product_id'
-            )
-            ->latestOfMany();
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Audit users
-    |--------------------------------------------------------------------------
-    */
-
-    /**
-     * User who created the product.
-     *
-     * @return BelongsTo<User, $this>
-     */
-    public function createdBy(): BelongsTo
-    {
-        return $this->belongsTo(
-            User::class,
-            'created_by'
-        );
-    }
-
-    /**
-     * User who last updated the product.
-     *
-     * @return BelongsTo<User, $this>
-     */
-    public function updatedBy(): BelongsTo
-    {
-        return $this->belongsTo(
-            User::class,
-            'updated_by'
-        );
+        return $this->hasOne(
+            ProductModerationReview::class
+        )->latestOfMany();
     }
 
     /**
      * Administrator who approved the product.
-     *
-     * @return BelongsTo<User, $this>
      */
     public function approvedBy(): BelongsTo
     {
         return $this->belongsTo(
             User::class,
             'approved_by'
+        );
+    }
+
+    /**
+     * Administrator who rejected the product.
+     */
+    public function rejectedBy(): BelongsTo
+    {
+        return $this->belongsTo(
+            User::class,
+            'rejected_by'
+        );
+    }
+
+    /**
+     * Administrator who suspended the product.
+     */
+    public function suspendedBy(): BelongsTo
+    {
+        return $this->belongsTo(
+            User::class,
+            'suspended_by'
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Return-policy relationships
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Return policy configured for this product.
+     */
+    public function returnPolicy(): HasOne
+    {
+        return $this->hasOne(
+            ProductReturnPolicy::class
+        );
+    }
+
+    /**
+     * Active return policy configured for this product.
+     */
+    public function activeReturnPolicy(): HasOne
+    {
+        return $this->hasOne(
+            ProductReturnPolicy::class
+        )->where(
+            'is_active',
+            true
         );
     }
 
@@ -418,65 +392,87 @@ class Product extends Model
     */
 
     /**
-     * Restrict products to one seller profile.
-     *
-     * @param Builder<Product> $query
-     *
-     * @return Builder<Product>
+     * Limit products to one seller profile.
      */
     public function scopeForSeller(
         Builder $query,
-        int $sellerProfileId
+        SellerProfile|int $seller
     ): Builder {
+        $sellerId = $seller instanceof SellerProfile
+            ? $seller->getKey()
+            : $seller;
+
         return $query->where(
             'seller_profile_id',
-            $sellerProfileId
+            $sellerId
         );
     }
 
     /**
-     * Restrict products to a status.
-     *
-     * @param Builder<Product> $query
-     *
-     * @return Builder<Product>
+     * Limit products to one category.
      */
-    public function scopeWithStatus(
+    public function scopeForCategory(
+        Builder $query,
+        Category|int $category
+    ): Builder {
+        $categoryId = $category instanceof Category
+            ? $category->getKey()
+            : $category;
+
+        return $query->where(
+            'category_id',
+            $categoryId
+        );
+    }
+
+    /**
+     * Limit products to one brand.
+     */
+    public function scopeForBrand(
+        Builder $query,
+        Brand|int $brand
+    ): Builder {
+        $brandId = $brand instanceof Brand
+            ? $brand->getKey()
+            : $brand;
+
+        return $query->where(
+            'brand_id',
+            $brandId
+        );
+    }
+
+    /**
+     * Filter products by lifecycle status.
+     */
+    public function scopeStatus(
         Builder $query,
         ProductStatus|string $status
     ): Builder {
-        $statusValue = $status instanceof ProductStatus
+        $value = $status instanceof ProductStatus
             ? $status->value
             : $status;
 
         return $query->where(
             'status',
-            $statusValue
+            $value
         );
     }
 
     /**
-     * Restrict products to approved products.
-     *
-     * @param Builder<Product> $query
-     *
-     * @return Builder<Product>
+     * Draft products.
      */
-    public function scopeApproved(
+    public function scopeDraft(
         Builder $query
     ): Builder {
         return $query->where(
             'status',
-            ProductStatus::APPROVED->value
+            ProductStatus::DRAFT->value
         );
     }
 
     /**
-     * Restrict products to pending-review products.
-     *
-     * @param Builder<Product> $query
-     *
-     * @return Builder<Product>
+     * Products awaiting moderation.
      */
     public function scopePendingReview(
         Builder $query
@@ -488,11 +484,165 @@ class Product extends Model
     }
 
     /**
-     * Restrict products to those allowed in the public catalog.
-     *
-     * @param Builder<Product> $query
-     *
-     * @return Builder<Product>
+     * Approved products.
+     */
+    public function scopeApproved(
+        Builder $query
+    ): Builder {
+        return $query->where(
+            'status',
+            ProductStatus::APPROVED->value
+        );
+    }
+
+    /**
+     * Rejected products.
+     */
+    public function scopeRejected(
+        Builder $query
+    ): Builder {
+        return $query->where(
+            'status',
+            ProductStatus::REJECTED->value
+        );
+    }
+
+    /**
+     * Suspended products.
+     */
+    public function scopeSuspended(
+        Builder $query
+    ): Builder {
+        return $query->where(
+            'status',
+            ProductStatus::SUSPENDED->value
+        );
+    }
+
+    /**
+     * Archived products.
+     */
+    public function scopeArchived(
+        Builder $query
+    ): Builder {
+        return $query->where(
+            'status',
+            ProductStatus::ARCHIVED->value
+        );
+    }
+
+    /**
+     * Search product identity, description, seller, brand and variant data.
+     */
+    public function scopeSearch(
+        Builder $query,
+        ?string $search
+    ): Builder {
+        $search = trim(
+            (string) $search
+        );
+
+        if ($search === '') {
+            return $query;
+        }
+
+        $escaped = addcslashes(
+            $search,
+            '\\%_'
+        );
+
+        $like = "%{$escaped}%";
+
+        return $query->where(
+            static function (
+                Builder $searchQuery
+            ) use ($like): void {
+                $searchQuery
+                    ->where(
+                        'name',
+                        'like',
+                        $like
+                    )
+                    ->orWhere(
+                        'slug',
+                        'like',
+                        $like
+                    )
+                    ->orWhere(
+                        'short_description',
+                        'like',
+                        $like
+                    )
+                    ->orWhere(
+                        'description',
+                        'like',
+                        $like
+                    )
+                    ->orWhereHas(
+                        'brand',
+                        static function (
+                            Builder $brandQuery
+                        ) use ($like): void {
+                            $brandQuery
+                                ->where(
+                                    'name',
+                                    'like',
+                                    $like
+                                )
+                                ->orWhere(
+                                    'slug',
+                                    'like',
+                                    $like
+                                );
+                        }
+                    )
+                    ->orWhereHas(
+                        'sellerProfile',
+                        static function (
+                            Builder $sellerQuery
+                        ) use ($like): void {
+                            $sellerQuery
+                                ->where(
+                                    'legal_business_name',
+                                    'like',
+                                    $like
+                                )
+                                ->orWhere(
+                                    'trading_name',
+                                    'like',
+                                    $like
+                                );
+                        }
+                    )
+                    ->orWhereHas(
+                        'variants',
+                        static function (
+                            Builder $variantQuery
+                        ) use ($like): void {
+                            $variantQuery
+                                ->where(
+                                    'name',
+                                    'like',
+                                    $like
+                                )
+                                ->orWhere(
+                                    'sku',
+                                    'like',
+                                    $like
+                                )
+                                ->orWhere(
+                                    'barcode',
+                                    'like',
+                                    $like
+                                );
+                        }
+                    );
+            }
+        );
+    }
+
+    /**
+     * Products eligible for the public customer catalog.
      */
     public function scopePubliclyVisible(
         Builder $query
@@ -509,7 +659,8 @@ class Product extends Model
                 ): void {
                     $sellerQuery->where(
                         'status',
-                        SellerProfileStatus::APPROVED->value
+                        SellerProfileStatus::APPROVED
+                            ->value
                     );
                 }
             )
@@ -565,71 +716,32 @@ class Product extends Model
     }
 
     /**
-     * Search products.
-     *
-     * @param Builder<Product> $query
-     *
-     * @return Builder<Product>
+     * Products with available stock or backordering enabled.
      */
-    public function scopeSearch(
-        Builder $query,
-        ?string $search
+    public function scopeInStock(
+        Builder $query
     ): Builder {
-        $search = trim(
-            (string) $search
-        );
-
-        if ($search === '') {
-            return $query;
-        }
-
-        $escapedSearch = addcslashes(
-            $search,
-            '\\%_'
-        );
-
-        $like = "%{$escapedSearch}%";
-
-        return $query->where(
+        return $query->whereHas(
+            'activeVariants.inventoryStock',
             static function (
-                Builder $searchQuery
-            ) use ($like): void {
-                $searchQuery
-                    ->where('name', 'like', $like)
-                    ->orWhere('slug', 'like', $like)
-                    ->orWhere(
-                        'short_description',
-                        'like',
-                        $like
-                    )
-                    ->orWhere(
-                        'description',
-                        'like',
-                        $like
-                    )
-                    ->orWhereHas(
-                        'variants',
-                        static function (
-                            Builder $variantQuery
-                        ) use ($like): void {
-                            $variantQuery
-                                ->where(
-                                    'sku',
-                                    'like',
-                                    $like
-                                )
-                                ->orWhere(
-                                    'barcode',
-                                    'like',
-                                    $like
-                                )
-                                ->orWhere(
-                                    'name',
-                                    'like',
-                                    $like
-                                );
-                        }
-                    );
+                Builder $stockQuery
+            ): void {
+                $stockQuery->where(
+                    static function (
+                        Builder $availableQuery
+                    ): void {
+                        $availableQuery
+                            ->whereColumn(
+                                'inventory_stocks.quantity_on_hand',
+                                '>',
+                                'inventory_stocks.quantity_reserved'
+                            )
+                            ->orWhere(
+                                'allow_backorder',
+                                true
+                            );
+                    }
+                );
             }
         );
     }
@@ -641,17 +753,39 @@ class Product extends Model
     */
 
     /**
-     * Determine whether the product has the supplied status.
+     * Return the product status as a string.
      */
-    public function hasStatus(
-        ProductStatus $status
-    ): bool {
-        return $this->status === $status;
+    public function statusValue(): string
+    {
+        return self::enumValue(
+            $this->status
+        );
     }
 
     /**
-     * Determine whether the product is a draft.
+     * Return the product condition as a string.
      */
+    public function conditionValue(): string
+    {
+        return self::enumValue(
+            $this->condition
+        );
+    }
+
+    /**
+     * Determine whether the product has a specific status.
+     */
+    public function hasStatus(
+        ProductStatus|string $status
+    ): bool {
+        $expected = $status instanceof ProductStatus
+            ? $status->value
+            : $status;
+
+        return $this->statusValue()
+            === $expected;
+    }
+
     public function isDraft(): bool
     {
         return $this->hasStatus(
@@ -659,9 +793,6 @@ class Product extends Model
         );
     }
 
-    /**
-     * Determine whether the product is pending review.
-     */
     public function isPendingReview(): bool
     {
         return $this->hasStatus(
@@ -669,9 +800,6 @@ class Product extends Model
         );
     }
 
-    /**
-     * Determine whether the product is approved.
-     */
     public function isApproved(): bool
     {
         return $this->hasStatus(
@@ -679,9 +807,6 @@ class Product extends Model
         );
     }
 
-    /**
-     * Determine whether the product is rejected.
-     */
     public function isRejected(): bool
     {
         return $this->hasStatus(
@@ -689,9 +814,6 @@ class Product extends Model
         );
     }
 
-    /**
-     * Determine whether the product is suspended.
-     */
     public function isSuspended(): bool
     {
         return $this->hasStatus(
@@ -699,9 +821,6 @@ class Product extends Model
         );
     }
 
-    /**
-     * Determine whether the product is archived.
-     */
     public function isArchived(): bool
     {
         return $this->hasStatus(
@@ -715,33 +834,33 @@ class Product extends Model
     public function canBeEdited(): bool
     {
         return in_array(
-            $this->status,
+            $this->statusValue(),
             [
-                ProductStatus::DRAFT,
-                ProductStatus::REJECTED,
-                ProductStatus::APPROVED,
+                ProductStatus::DRAFT->value,
+                ProductStatus::REJECTED->value,
+                ProductStatus::APPROVED->value,
             ],
             true
         );
     }
 
     /**
-     * Determine whether the product may be submitted for review.
+     * Determine whether the product may enter moderation.
      */
     public function canBeSubmittedForReview(): bool
     {
         return in_array(
-            $this->status,
+            $this->statusValue(),
             [
-                ProductStatus::DRAFT,
-                ProductStatus::REJECTED,
+                ProductStatus::DRAFT->value,
+                ProductStatus::REJECTED->value,
             ],
             true
         );
     }
 
     /**
-     * Determine whether the product may appear publicly.
+     * Determine whether the product is visible to customers.
      */
     public function isPubliclyVisible(): bool
     {
@@ -749,153 +868,116 @@ class Product extends Model
             return false;
         }
 
-        $seller = $this->relationLoaded(
-            'sellerProfile'
-        )
-            ? $this->sellerProfile
-            : $this->sellerProfile()->first();
+        $seller = $this->resolvedSellerProfile();
 
         if (
-            $seller === null
-            || !$seller->isApproved()
+            !$seller instanceof SellerProfile
+            || self::enumValue($seller->status)
+                !== SellerProfileStatus::APPROVED->value
         ) {
             return false;
         }
 
-        $category = $this->relationLoaded('category')
-            ? $this->category
-            : $this->category()->first();
+        $category = $this->resolvedCategory();
 
         if (
-            $category === null
+            !$category instanceof Category
             || !$category->is_active
         ) {
             return false;
         }
 
-        $brand = $this->relationLoaded('brand')
-            ? $this->brand
-            : $this->brand()->first();
+        $brand = $this->resolvedBrand();
 
         if (
-            $brand !== null
-            && !$brand->is_active
+            $this->brand_id !== null
+            && (
+                !$brand instanceof Brand
+                || !$brand->is_active
+            )
         ) {
             return false;
         }
 
-        return $this
-            ->activeVariants()
-            ->whereHas(
-                'price',
-                static function (
-                    Builder $query
-                ): void {
-                    $query->where(
-                        'selling_price',
-                        '>',
-                        0
-                    );
-                }
-            )
-            ->exists();
+        return $this->hasSellableVariant();
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Specification values
+    | Specification helpers
     |--------------------------------------------------------------------------
     */
 
     /**
-     * Return normalized product specification values.
-     *
-     * Specifications are stored using definition codes:
-     *
-     * [
-     *     'processor' => 'Intel Core i7',
-     *     'ram' => 16,
-     *     'storage_capacity' => 512,
-     *     'screen_size' => 15.6,
-     * ]
+     * Return normalized specification values.
      *
      * @return array<string, mixed>
      */
     public function specificationValues(): array
     {
-        if (!is_array($this->specifications)) {
-            return [];
-        }
-
-        return collect($this->specifications)
-            ->mapWithKeys(
-                static function (
-                    mixed $value,
-                    string|int $code
-                ): array {
-                    $normalizedCode = Str::snake(
-                        trim((string) $code)
-                    );
-
-                    return [
-                        $normalizedCode => $value,
-                    ];
-                }
-            )
-            ->all();
+        return self::normalizeSpecificationValues(
+            $this->specifications
+        );
     }
 
     /**
-     * Return one specification value.
+     * Return one specification value by its normalized code.
      */
     public function specificationValue(
         string $code,
         mixed $default = null
     ): mixed {
-        $normalizedCode = Str::snake(
-            trim($code)
+        $code = self::normalizeSpecificationCode(
+            $code
         );
 
         return $this->specificationValues()[
-            $normalizedCode
+            $code
         ] ?? $default;
     }
 
     /**
-     * Determine whether a specification contains a meaningful value.
+     * Determine whether a meaningful specification value exists.
      */
     public function hasSpecificationValue(
         string $code
     ): bool {
-        $normalizedCode = Str::snake(
-            trim($code)
+        $code = self::normalizeSpecificationCode(
+            $code
         );
 
         $values = $this->specificationValues();
 
-        if (!array_key_exists($normalizedCode, $values)) {
-            return false;
-        }
-
-        return $this->valueIsPresent(
-            $values[$normalizedCode]
+        return array_key_exists(
+            $code,
+            $values
+        ) && self::valueIsPresent(
+            $values[$code]
         );
     }
 
     /**
-     * Add or replace one specification value.
+     * Set one specification value.
      */
     public function setSpecificationValue(
         string $code,
         mixed $value
     ): self {
-        $normalizedCode = Str::snake(
-            trim($code)
+        $code = self::normalizeSpecificationCode(
+            $code
         );
+
+        if ($code === '') {
+            return $this;
+        }
 
         $values = $this->specificationValues();
 
-        $values[$normalizedCode] = $value;
+        if (!self::valueIsPresent($value)) {
+            unset($values[$code]);
+        } else {
+            $values[$code] = $value;
+        }
 
         $this->specifications = $values;
 
@@ -908,13 +990,13 @@ class Product extends Model
     public function removeSpecificationValue(
         string $code
     ): self {
-        $normalizedCode = Str::snake(
-            trim($code)
+        $code = self::normalizeSpecificationCode(
+            $code
         );
 
         $values = $this->specificationValues();
 
-        unset($values[$normalizedCode]);
+        unset($values[$code]);
 
         $this->specifications = $values;
 
@@ -922,9 +1004,563 @@ class Product extends Model
     }
 
     /**
-     * Determine whether a submitted value is present.
+     * Return required specification codes currently missing from the product.
+     *
+     * @return array<int, string>
      */
-    private function valueIsPresent(
+    public function missingRequiredSpecifications(): array
+    {
+        $category = $this->resolvedCategory();
+
+        if (!$category instanceof Category) {
+            return [];
+        }
+
+        return $category
+            ->effectiveSpecificationAssignments()
+            ->filter(
+                static fn (
+                    CategorySpecification $assignment
+                ): bool => $assignment->isRequired()
+            )
+            ->reject(
+                function (
+                    CategorySpecification $assignment
+                ): bool {
+                    $code = $assignment->code();
+
+                    if (
+                        $this->hasSpecificationValue(
+                            $code
+                        )
+                    ) {
+                        return true;
+                    }
+
+                    return self::valueIsPresent(
+                        $assignment
+                            ->effectiveDefaultValue()
+                    );
+                }
+            )
+            ->map(
+                static fn (
+                    CategorySpecification $assignment
+                ): string => $assignment->code()
+            )
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Return required specification validation errors.
+     *
+     * @return array<string, array<int, string>>
+     */
+    public function specificationReadinessErrors(): array
+    {
+        $errors = [];
+
+        $category = $this->resolvedCategory();
+
+        if (!$category instanceof Category) {
+            return [
+                'category' => [
+                    'The product must belong to a valid category.',
+                ],
+            ];
+        }
+
+        $assignments = $category
+            ->effectiveSpecificationAssignments()
+            ->keyBy(
+                static fn (
+                    CategorySpecification $assignment
+                ): string => $assignment->code()
+            );
+
+        foreach (
+            $this->missingRequiredSpecifications()
+            as $code
+        ) {
+            $assignment = $assignments->get(
+                $code
+            );
+
+            $label =
+                $assignment instanceof
+                CategorySpecification
+                    ? $assignment->effectiveLabel()
+                    : Str::headline($code);
+
+            $errors[
+                "specifications.{$code}"
+            ][] = sprintf(
+                'The %s specification is required.',
+                $label
+            );
+        }
+
+        return $errors;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Catalog readiness helpers
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Determine whether at least one active variant has positive pricing.
+     */
+    public function hasSellableVariant(): bool
+    {
+        return $this
+            ->activeVariants()
+            ->whereHas(
+                'price',
+                static function (
+                    Builder $priceQuery
+                ): void {
+                    $priceQuery->where(
+                        'selling_price',
+                        '>',
+                        0
+                    );
+                }
+            )
+            ->exists();
+    }
+
+    /**
+     * Determine whether inventory is configured for an active variant.
+     */
+    public function hasConfiguredInventory(): bool
+    {
+        return $this
+            ->activeVariants()
+            ->whereHas(
+                'inventoryStock'
+            )
+            ->exists();
+    }
+
+    /**
+     * Determine whether stock is currently available.
+     */
+    public function hasAvailableStock(): bool
+    {
+        return $this
+            ->activeVariants()
+            ->whereHas(
+                'inventoryStock',
+                static function (
+                    Builder $stockQuery
+                ): void {
+                    $stockQuery->where(
+                        static function (
+                            Builder $availableQuery
+                        ): void {
+                            $availableQuery
+                                ->whereColumn(
+                                    'inventory_stocks.quantity_on_hand',
+                                    '>',
+                                    'inventory_stocks.quantity_reserved'
+                                )
+                                ->orWhere(
+                                    'allow_backorder',
+                                    true
+                                );
+                        }
+                    );
+                }
+            )
+            ->exists();
+    }
+
+    /**
+     * Return all product publication-readiness problems.
+     *
+     * @return array<string, array<int, string>>
+     */
+    public function publicationReadinessErrors(): array
+    {
+        $errors = [];
+
+        $seller = $this->resolvedSellerProfile();
+
+        if (
+            !$seller instanceof SellerProfile
+            || self::enumValue($seller->status)
+                !== SellerProfileStatus::APPROVED->value
+        ) {
+            $errors['seller'][] =
+                'The seller business must be approved before submitting products.';
+        }
+
+        $category = $this->resolvedCategory();
+
+        if (!$category instanceof Category) {
+            $errors['category'][] =
+                'The product must belong to a valid category.';
+        } elseif (!$category->is_active) {
+            $errors['category'][] =
+                'The selected product category is inactive.';
+        }
+
+        $brand = $this->resolvedBrand();
+
+        if (
+            $this->brand_id !== null
+            && (
+                !$brand instanceof Brand
+                || !$brand->is_active
+            )
+        ) {
+            $errors['brand'][] =
+                'The selected product brand is inactive or unavailable.';
+        }
+
+        if (
+            trim((string) $this->name) === ''
+        ) {
+            $errors['name'][] =
+                'The product name is required.';
+        }
+
+        if (
+            trim(
+                (string) $this->short_description
+            ) === ''
+            && trim(
+                (string) $this->description
+            ) === ''
+        ) {
+            $errors['description'][] =
+                'Provide a short description or full product description.';
+        }
+
+        foreach (
+            $this->specificationReadinessErrors()
+            as $field => $messages
+        ) {
+            foreach ($messages as $message) {
+                $errors[$field][] = $message;
+            }
+        }
+
+        if (
+            !$this
+                ->activeVariants()
+                ->exists()
+        ) {
+            $errors['variants'][] =
+                'Create at least one active product variant.';
+        }
+
+        if (!$this->hasSellableVariant()) {
+            $errors['pricing'][] =
+                'At least one active variant must have a selling price greater than zero.';
+        }
+
+        if (!$this->hasConfiguredInventory()) {
+            $errors['inventory'][] =
+                'Configure inventory for at least one active product variant.';
+        }
+
+        if (!$this->media()->exists()) {
+            $errors['media'][] =
+                'Upload at least one product image.';
+        }
+
+        foreach (
+            $this->returnPolicyReadinessErrors()
+            as $field => $messages
+        ) {
+            foreach ($messages as $message) {
+                $errors[$field][] = $message;
+            }
+        }
+
+        return $errors;
+    }
+
+    /**
+     * Determine whether the product is ready for moderation submission.
+     */
+    public function isReadyForPublication(): bool
+    {
+        return $this->publicationReadinessErrors()
+            === [];
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Return-policy helpers
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Determine whether the product has an active return policy.
+     */
+    public function hasActiveReturnPolicy(): bool
+    {
+        if ($this->relationLoaded('returnPolicy')) {
+            return $this->returnPolicy
+                instanceof ProductReturnPolicy
+                && $this->returnPolicy->is_active;
+        }
+
+        return $this
+            ->activeReturnPolicy()
+            ->exists();
+    }
+
+    /**
+     * Determine whether customers may return this product.
+     */
+    public function isReturnable(): bool
+    {
+        $policy = $this
+            ->resolvedReturnPolicy();
+
+        return $policy?->allowsReturns()
+            ?? false;
+    }
+
+    /**
+     * Return customer-safe return-policy information.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function customerReturnPolicy(): ?array
+    {
+        $policy = $this
+            ->resolvedReturnPolicy();
+
+        if (
+            !$policy instanceof
+            ProductReturnPolicy
+        ) {
+            return null;
+        }
+
+        return $policy->toCustomerPolicy();
+    }
+
+    /**
+     * Return problems that prevent return-policy readiness.
+     *
+     * @return array<string, array<int, string>>
+     */
+    public function returnPolicyReadinessErrors(): array
+    {
+        $policy = $this
+            ->resolvedReturnPolicy();
+
+        if (
+            !$policy instanceof
+            ProductReturnPolicy
+        ) {
+            return [
+                'return_policy' => [
+                    'Configure a product return policy before submitting the product for moderation.',
+                ],
+            ];
+        }
+
+        if (!$policy->is_active) {
+            return [
+                'return_policy' => [
+                    'The product return policy must be active before moderation submission.',
+                ],
+            ];
+        }
+
+        $errors = [];
+
+        foreach (
+            $policy->configurationErrors()
+            as $field => $messages
+        ) {
+            $errorField =
+                "return_policy.{$field}";
+
+            foreach ($messages as $message) {
+                $errors[$errorField][] =
+                    $message;
+            }
+        }
+
+        return $errors;
+    }
+
+    /**
+     * Determine whether the return policy is complete.
+     */
+    public function hasValidReturnPolicy(): bool
+    {
+        return $this
+            ->returnPolicyReadinessErrors()
+            === [];
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Relationship resolvers
+    |--------------------------------------------------------------------------
+    */
+
+    private function resolvedSellerProfile(): ?SellerProfile
+    {
+        if (
+            $this->relationLoaded(
+                'sellerProfile'
+            )
+        ) {
+            $seller = $this->getRelation(
+                'sellerProfile'
+            );
+
+            return $seller instanceof SellerProfile
+                ? $seller
+                : null;
+        }
+
+        return $this
+            ->sellerProfile()
+            ->first();
+    }
+
+    private function resolvedCategory(): ?Category
+    {
+        if (
+            $this->relationLoaded(
+                'category'
+            )
+        ) {
+            $category = $this->getRelation(
+                'category'
+            );
+
+            return $category instanceof Category
+                ? $category
+                : null;
+        }
+
+        return $this
+            ->category()
+            ->first();
+    }
+
+    private function resolvedBrand(): ?Brand
+    {
+        if ($this->brand_id === null) {
+            return null;
+        }
+
+        if (
+            $this->relationLoaded(
+                'brand'
+            )
+        ) {
+            $brand = $this->getRelation(
+                'brand'
+            );
+
+            return $brand instanceof Brand
+                ? $brand
+                : null;
+        }
+
+        return $this
+            ->brand()
+            ->first();
+    }
+
+    private function resolvedReturnPolicy(): ?ProductReturnPolicy
+    {
+        if (
+            $this->relationLoaded(
+                'returnPolicy'
+            )
+        ) {
+            $policy = $this->getRelation(
+                'returnPolicy'
+            );
+
+            return $policy
+                instanceof ProductReturnPolicy
+                    ? $policy
+                    : null;
+        }
+
+        return $this
+            ->returnPolicy()
+            ->first();
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Normalization helpers
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Normalize the product specification JSON object.
+     *
+     * @return array<string, mixed>
+     */
+    private static function normalizeSpecificationValues(
+        mixed $values
+    ): array {
+        if (!is_array($values)) {
+            return [];
+        }
+
+        $normalized = [];
+
+        foreach ($values as $code => $value) {
+            if (
+                !is_string($code)
+                && !is_int($code)
+            ) {
+                continue;
+            }
+
+            $normalizedCode =
+                self::normalizeSpecificationCode(
+                    (string) $code
+                );
+
+            if ($normalizedCode === '') {
+                continue;
+            }
+
+            $normalized[$normalizedCode] =
+                $value;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Normalize one specification code.
+     */
+    private static function normalizeSpecificationCode(
+        string $code
+    ): string {
+        return Str::snake(
+            trim($code)
+        );
+    }
+
+    /**
+     * Determine whether a specification value is meaningfully present.
+     *
+     * false and zero are valid values.
+     */
+    private static function valueIsPresent(
         mixed $value
     ): bool {
         if ($value === null) {
@@ -948,414 +1584,35 @@ class Product extends Model
         return true;
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Category specification helpers
-    |--------------------------------------------------------------------------
-    */
-
     /**
-     * Return the product category model.
+     * Return a string value from an enum or scalar.
      */
-    private function productCategory(): ?Category
-    {
-        if ($this->relationLoaded('category')) {
-            return $this->category;
+    private static function enumValue(
+        mixed $value
+    ): string {
+        if ($value instanceof BackedEnum) {
+            return (string) $value->value;
         }
 
-        return $this
-            ->category()
-            ->first();
+        return (string) $value;
     }
 
     /**
-     * Return effective category specifications.
-     *
-     * Parent category specifications are inherited.
-     *
-     * @return SupportCollection<int, CategorySpecification>
+     * Trim nullable text.
      */
-    public function categorySpecifications(): SupportCollection
-    {
-        $category = $this->productCategory();
-
-        if ($category === null) {
-            return collect();
+    private static function nullableTrim(
+        mixed $value
+    ): ?string {
+        if ($value === null) {
+            return null;
         }
 
-        return $category
-            ->effectiveSpecificationAssignments();
-    }
-
-    /**
-     * Return effective required category specifications.
-     *
-     * @return SupportCollection<int, CategorySpecification>
-     */
-    public function requiredCategorySpecifications(): SupportCollection
-    {
-        return $this
-            ->categorySpecifications()
-            ->filter(
-                static fn (
-                    CategorySpecification $assignment
-                ): bool =>
-                    $assignment->isRequired()
-            )
-            ->values();
-    }
-
-    /**
-     * Return required specifications missing from the product.
-     *
-     * @return SupportCollection<int, CategorySpecification>
-     */
-    public function missingRequiredSpecifications(): SupportCollection
-    {
-        return $this
-            ->requiredCategorySpecifications()
-            ->filter(
-                fn (
-                    CategorySpecification $assignment
-                ): bool =>
-                    !$this->hasSpecificationValue(
-                        $assignment->code()
-                    )
-            )
-            ->values();
-    }
-
-    /**
-     * Return missing required specification codes.
-     *
-     * @return array<int, string>
-     */
-    public function missingRequiredSpecificationCodes(): array
-    {
-        return $this
-            ->missingRequiredSpecifications()
-            ->map(
-                static fn (
-                    CategorySpecification $assignment
-                ): string =>
-                    $assignment->code()
-            )
-            ->values()
-            ->all();
-    }
-
-    /**
-     * Return specification codes that are not assigned to the category.
-     *
-     * @return array<int, string>
-     */
-    public function unknownSpecificationCodes(): array
-    {
-        $allowedCodes = $this
-            ->categorySpecifications()
-            ->map(
-                static fn (
-                    CategorySpecification $assignment
-                ): string =>
-                    $assignment->code()
-            )
-            ->values();
-
-        return collect(
-            array_keys(
-                $this->specificationValues()
-            )
-        )
-            ->diff($allowedCodes)
-            ->values()
-            ->all();
-    }
-
-    /**
-     * Determine whether all required specifications are present.
-     */
-    public function hasRequiredSpecifications(): bool
-    {
-        return $this
-            ->missingRequiredSpecifications()
-            ->isEmpty();
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Submission and publication readiness
-    |--------------------------------------------------------------------------
-    */
-
-    /**
-     * Return specification-related readiness errors.
-     *
-     * Typed validation is added later by the specification validator service.
-     *
-     * @return array<int, string>
-     */
-    public function specificationReadinessErrors(): array
-    {
-        $errors = [];
-
-        foreach (
-            $this->missingRequiredSpecifications()
-            as $assignment
-        ) {
-            $errors[] = sprintf(
-                'The %s specification is required.',
-                $assignment->effectiveLabel()
-            );
-        }
-
-        return $errors;
-    }
-
-    /**
-     * Return all product submission-readiness errors.
-     *
-     * @return array<int, string>
-     */
-    public function publicationReadinessErrors(): array
-    {
-        $errors = [];
-
-        if (
-            trim((string) $this->name) === ''
-        ) {
-            $errors[] = 'The product name is required.';
-        }
-
-        if (
-            $this->short_description === null
-            && $this->description === null
-        ) {
-            $errors[] =
-                'A product description is required.';
-        }
-
-        $seller = $this->relationLoaded(
-            'sellerProfile'
-        )
-            ? $this->sellerProfile
-            : $this->sellerProfile()->first();
-
-        if ($seller === null) {
-            $errors[] =
-                'The product must belong to a seller profile.';
-        } elseif (!$seller->isApproved()) {
-            $errors[] =
-                'The seller profile must be approved.';
-        }
-
-        $category = $this->productCategory();
-
-        if ($category === null) {
-            $errors[] =
-                'The product category is required.';
-        } elseif (!$category->is_active) {
-            $errors[] =
-                'The product category must be active.';
-        }
-
-        $brand = $this->relationLoaded('brand')
-            ? $this->brand
-            : $this->brand()->first();
-
-        if (
-            $brand !== null
-            && !$brand->is_active
-        ) {
-            $errors[] =
-                'The selected product brand is inactive.';
-        }
-
-        $errors = array_merge(
-            $errors,
-            $this->specificationReadinessErrors()
+        $value = trim(
+            (string) $value
         );
 
-        $variants = $this->activeVariantRecords();
-
-        if ($variants->isEmpty()) {
-            $errors[] =
-                'At least one active product variant is required.';
-        }
-
-        foreach ($variants as $variant) {
-            if (
-                trim((string) $variant->sku) === ''
-            ) {
-                $errors[] = sprintf(
-                    'Variant %s requires a SKU.',
-                    $variant->public_id
-                        ?? $variant->getKey()
-                );
-            }
-
-            if (
-                !$variant->relationLoaded('price')
-            ) {
-                $variant->load('price');
-            }
-
-            if (
-                $variant->price === null
-                || (float) $variant->price->selling_price <= 0
-            ) {
-                $errors[] = sprintf(
-                    'Variant %s requires a valid selling price.',
-                    $variant->sku
-                        ?: $variant->public_id
-                );
-            }
-
-            if (
-                !$variant->relationLoaded(
-                    'inventoryStock'
-                )
-            ) {
-                $variant->load('inventoryStock');
-            }
-
-            if ($variant->inventoryStock === null) {
-                $errors[] = sprintf(
-                    'Variant %s requires an inventory record.',
-                    $variant->sku
-                        ?: $variant->public_id
-                );
-            }
-        }
-
-        if ($this->productMediaRecords()->isEmpty()) {
-            $errors[] =
-                'At least one product image is required.';
-        }
-
-        return array_values(
-            array_unique($errors)
-        );
-    }
-
-    /**
-     * Determine whether the product is ready for moderation submission.
-     */
-    public function isReadyForSubmission(): bool
-    {
-        return $this
-            ->publicationReadinessErrors() === [];
-    }
-
-    /**
-     * Return a structured readiness summary.
-     *
-     * @return array<string, mixed>
-     */
-    public function publicationReadiness(): array
-    {
-        $errors = $this
-            ->publicationReadinessErrors();
-
-        return [
-            'is_ready' => $errors === [],
-
-            'errors' => $errors,
-
-            'missing_required_specifications' =>
-                $this
-                    ->missingRequiredSpecifications()
-                    ->map(
-                        static fn (
-                            CategorySpecification $assignment
-                        ): array => [
-                            'public_id' =>
-                                (string) $assignment->public_id,
-
-                            'code' =>
-                                $assignment->code(),
-
-                            'label' =>
-                                $assignment->effectiveLabel(),
-
-                            'data_type' =>
-                                $assignment
-                                    ->dataType()
-                                    ->value,
-
-                            'unit' =>
-                                $assignment->unit(),
-                        ]
-                    )
-                    ->values()
-                    ->all(),
-        ];
-    }
-
-    /**
-     * Return active variants with pricing and inventory loaded.
-     *
-     * @return Collection<int, ProductVariant>
-     */
-    private function activeVariantRecords(): Collection
-    {
-        if (
-            $this->relationLoaded(
-                'activeVariants'
-            )
-        ) {
-            $variants = $this->activeVariants;
-
-            $variants->loadMissing([
-                'price',
-                'inventoryStock',
-            ]);
-
-            return $variants;
-        }
-
-        if ($this->relationLoaded('variants')) {
-            $variants = $this
-                ->variants
-                ->filter(
-                    static fn (
-                        ProductVariant $variant
-                    ): bool =>
-                        (bool) $variant->is_active
-                )
-                ->values();
-
-            $variants->loadMissing([
-                'price',
-                'inventoryStock',
-            ]);
-
-            return new Collection(
-                $variants->all()
-            );
-        }
-
-        return $this
-            ->activeVariants()
-            ->with([
-                'price',
-                'inventoryStock',
-            ])
-            ->get();
-    }
-
-    /**
-     * Return product media records.
-     *
-     * @return Collection<int, ProductMedia>
-     */
-    private function productMediaRecords(): Collection
-    {
-        if ($this->relationLoaded('media')) {
-            return $this->media;
-        }
-
-        return $this
-            ->media()
-            ->get();
+        return $value !== ''
+            ? $value
+            : null;
     }
 }

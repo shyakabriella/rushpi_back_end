@@ -26,7 +26,7 @@ use Illuminate\Validation\ValidationException;
 final class ProductController extends Controller
 {
     /**
-     * List products belonging to an approved seller.
+     * List products belonging to the seller profile.
      */
     public function index(
         Request $request,
@@ -70,6 +70,8 @@ final class ProductController extends Controller
                 'category:id,public_id,parent_id,name,slug,is_active',
 
                 'brand:id,public_id,name,slug,logo_path,is_active',
+
+                'returnPolicy',
 
                 'variants' => static function (
                     Builder $variantQuery
@@ -353,7 +355,9 @@ final class ProductController extends Controller
             }
         );
 
-        $this->loadProductRelations($product);
+        $this->loadProductRelations(
+            $product
+        );
 
         return response()->json([
             'success' => true,
@@ -362,13 +366,15 @@ final class ProductController extends Controller
                 'Product draft created successfully.',
 
             'data' => (
-                new SellerProductResource($product)
+                new SellerProductResource(
+                    $product
+                )
             )->resolve($request),
         ], 201);
     }
 
     /**
-     * Show one seller product.
+     * Display one seller product.
      */
     public function show(
         Request $request,
@@ -380,7 +386,9 @@ final class ProductController extends Controller
             $product
         );
 
-        $this->loadProductRelations($product);
+        $this->loadProductRelations(
+            $product
+        );
 
         return response()->json([
             'success' => true,
@@ -389,7 +397,9 @@ final class ProductController extends Controller
                 'Seller product retrieved successfully.',
 
             'data' => (
-                new SellerProductResource($product)
+                new SellerProductResource(
+                    $product
+                )
             )->resolve($request),
         ]);
     }
@@ -407,9 +417,10 @@ final class ProductController extends Controller
             $product
         );
 
-        $currentStatus = $this->productStatus(
-            $product
-        );
+        $currentStatus =
+            $this->productStatus(
+                $product
+            );
 
         if (
             in_array(
@@ -448,7 +459,9 @@ final class ProductController extends Controller
                 &$returnedToDraft
             ): Product {
                 $lockedProduct = Product::query()
-                    ->whereKey($product->getKey())
+                    ->whereKey(
+                        $product->getKey()
+                    )
                     ->lockForUpdate()
                     ->firstOrFail();
 
@@ -489,8 +502,8 @@ final class ProductController extends Controller
                         $data
                     )
                 ) {
-                    $brand = $request
-                        ->submittedBrand();
+                    $brand =
+                        $request->submittedBrand();
 
                     $data['brand_id'] =
                         $brand?->getKey();
@@ -501,7 +514,10 @@ final class ProductController extends Controller
                 }
 
                 if (
-                    array_key_exists('slug', $data)
+                    array_key_exists(
+                        'slug',
+                        $data
+                    )
                     && (
                         $data['slug'] === null
                         || trim(
@@ -521,7 +537,9 @@ final class ProductController extends Controller
                         );
                 }
 
-                $lockedProduct->fill($data);
+                $lockedProduct->fill(
+                    $data
+                );
 
                 $sensitiveChange =
                     $lockedProduct->isDirty(
@@ -556,14 +574,12 @@ final class ProductController extends Controller
             $updatedProduct
         );
 
-        $message = $returnedToDraft
-            ? 'Product updated successfully and returned to draft for moderation.'
-            : 'Product updated successfully.';
-
         return response()->json([
             'success' => true,
 
-            'message' => $message,
+            'message' => $returnedToDraft
+                ? 'Product updated successfully and returned to draft for moderation.'
+                : 'Product updated successfully.',
 
             'data' => (
                 new SellerProductResource(
@@ -586,10 +602,13 @@ final class ProductController extends Controller
             $product
         );
 
-        $status = $this->productStatus($product);
+        $status = $this->productStatus(
+            $product
+        );
 
         if (
-            $status === ProductStatus::PENDING_REVIEW
+            $status ===
+            ProductStatus::PENDING_REVIEW
         ) {
             return response()->json([
                 'success' => false,
@@ -605,7 +624,10 @@ final class ProductController extends Controller
             ], 409);
         }
 
-        if ($status === ProductStatus::ARCHIVED) {
+        if (
+            $status ===
+            ProductStatus::ARCHIVED
+        ) {
             return response()->json([
                 'success' => true,
 
@@ -622,7 +644,9 @@ final class ProductController extends Controller
                 $product
             ): void {
                 $lockedProduct = Product::query()
-                    ->whereKey($product->getKey())
+                    ->whereKey(
+                        $product->getKey()
+                    )
                     ->lockForUpdate()
                     ->firstOrFail();
 
@@ -635,7 +659,8 @@ final class ProductController extends Controller
                     $lockedProduct,
                     [
                         'status' =>
-                            ProductStatus::ARCHIVED->value,
+                            ProductStatus::ARCHIVED
+                                ->value,
 
                         'archived_at' =>
                             now(),
@@ -677,7 +702,9 @@ final class ProductController extends Controller
                 $specificationValidator
             ): Product {
                 $lockedProduct = Product::query()
-                    ->whereKey($product->getKey())
+                    ->whereKey(
+                        $product->getKey()
+                    )
                     ->lockForUpdate()
                     ->firstOrFail();
 
@@ -719,9 +746,14 @@ final class ProductController extends Controller
                 }
 
                 /*
-                 * Enforce required category specifications and normalize the
-                 * final values before checking the remaining catalog data.
-                 */
+                |--------------------------------------------------------------------------
+                | Validate category specifications
+                |--------------------------------------------------------------------------
+                |
+                | Publication validation enforces required fields and typed
+                | specification rules before moderation submission.
+                |
+                */
 
                 $normalizedSpecifications =
                     $specificationValidator
@@ -742,11 +774,25 @@ final class ProductController extends Controller
                     $normalizedSpecifications
                 );
 
+                /*
+                |--------------------------------------------------------------------------
+                | Validate complete publication readiness
+                |--------------------------------------------------------------------------
+                |
+                | This now includes a mandatory active return policy.
+                |
+                */
+
                 $readinessErrors =
                     $this->publicationReadinessErrors(
-                        $sellerProfile,
-                        $lockedProduct,
-                        $category
+                        sellerProfile:
+                            $sellerProfile,
+
+                        product:
+                            $lockedProduct,
+
+                        category:
+                            $category
                     );
 
                 if ($readinessErrors !== []) {
@@ -788,6 +834,9 @@ final class ProductController extends Controller
 
                         'suspension_reason' =>
                             null,
+
+                        'archived_at' =>
+                            null,
                     ]
                 );
 
@@ -816,7 +865,7 @@ final class ProductController extends Controller
     }
 
     /**
-     * Validate product information needed before moderation.
+     * Validate all product information required before moderation.
      *
      * @return array<string, array<int, string>>
      */
@@ -827,18 +876,39 @@ final class ProductController extends Controller
     ): array {
         $errors = [];
 
-        if (!$this->sellerIsApproved($sellerProfile)) {
+        /*
+        |--------------------------------------------------------------------------
+        | Seller readiness
+        |--------------------------------------------------------------------------
+        */
+
+        if (!$this->sellerIsApproved(
+            $sellerProfile
+        )) {
             $errors['seller'][] =
                 'The seller business must be approved before submitting products.';
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Category readiness
+        |--------------------------------------------------------------------------
+        */
 
         if (!$category->is_active) {
             $errors['category'][] =
                 'The selected product category is inactive.';
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Product information
+        |--------------------------------------------------------------------------
+        */
+
         if (
-            trim((string) $product->name) === ''
+            trim((string) $product->name)
+            === ''
         ) {
             $errors['name'][] =
                 'The product name is required.';
@@ -846,15 +916,23 @@ final class ProductController extends Controller
 
         if (
             trim(
-                (string) $product->short_description
+                (string) $product
+                    ->short_description
             ) === ''
             && trim(
-                (string) $product->description
+                (string) $product
+                    ->description
             ) === ''
         ) {
             $errors['description'][] =
                 'Provide a short description or full product description.';
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Brand readiness
+        |--------------------------------------------------------------------------
+        */
 
         if ($product->brand_id !== null) {
             $brand = $product
@@ -870,6 +948,12 @@ final class ProductController extends Controller
             }
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Variant readiness
+        |--------------------------------------------------------------------------
+        */
+
         $activeVariantsQuery = $product
             ->variants()
             ->where(
@@ -878,11 +962,18 @@ final class ProductController extends Controller
             );
 
         if (
-            !(clone $activeVariantsQuery)->exists()
+            !(clone $activeVariantsQuery)
+                ->exists()
         ) {
             $errors['variants'][] =
                 'Create at least one active product variant.';
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Pricing readiness
+        |--------------------------------------------------------------------------
+        */
 
         if (
             !(clone $activeVariantsQuery)
@@ -904,6 +995,12 @@ final class ProductController extends Controller
                 'At least one active variant must have a selling price greater than zero.';
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Inventory readiness
+        |--------------------------------------------------------------------------
+        */
+
         if (
             !(clone $activeVariantsQuery)
                 ->whereHas(
@@ -915,6 +1012,12 @@ final class ProductController extends Controller
                 'Configure inventory for at least one active product variant.';
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Media readiness
+        |--------------------------------------------------------------------------
+        */
+
         if (
             !$product
                 ->media()
@@ -922,6 +1025,27 @@ final class ProductController extends Controller
         ) {
             $errors['media'][] =
                 'Upload at least one product image.';
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Return-policy readiness
+        |--------------------------------------------------------------------------
+        |
+        | Every submitted product must define customer return eligibility,
+        | including products that are explicitly non-returnable.
+        |
+        */
+
+        foreach (
+            $product
+                ->returnPolicyReadinessErrors()
+            as $field => $messages
+        ) {
+            foreach ($messages as $message) {
+                $errors[$field][] =
+                    $message;
+            }
         }
 
         return $errors;
@@ -965,12 +1089,15 @@ final class ProductController extends Controller
 
                 'suspension_reason' =>
                     null,
+
+                'archived_at' =>
+                    null,
             ]
         );
     }
 
     /**
-     * Fields that require a fresh moderation review when changed.
+     * Product fields that require fresh moderation when changed.
      *
      * @return array<int, string>
      */
@@ -1001,6 +1128,12 @@ final class ProductController extends Controller
             'category:id,public_id,parent_id,name,slug,is_active',
 
             'brand:id,public_id,name,slug,logo_path,is_active',
+
+            'returnPolicy',
+
+            'returnPolicy.createdBy',
+
+            'returnPolicy.updatedBy',
 
             'variants' => static function (
                 Builder $variantQuery
@@ -1051,7 +1184,7 @@ final class ProductController extends Controller
     }
 
     /**
-     * Ensure nested product access cannot cross seller accounts.
+     * Prevent one seller from accessing another seller's product.
      */
     private function ensureProductBelongsToSeller(
         SellerProfile $sellerProfile,
@@ -1066,7 +1199,7 @@ final class ProductController extends Controller
     }
 
     /**
-     * Read the product status regardless of whether the model uses an enum cast.
+     * Read product status regardless of enum casting.
      */
     private function productStatus(
         Product $product
@@ -1108,7 +1241,8 @@ final class ProductController extends Controller
             $status = $status->value;
         }
 
-        return (string) $status === 'approved';
+        return (string) $status
+            === 'approved';
     }
 
     /**
@@ -1118,7 +1252,9 @@ final class ProductController extends Controller
         string $name,
         ?Product $ignoredProduct = null
     ): string {
-        $baseSlug = Str::slug($name);
+        $baseSlug = Str::slug(
+            $name
+        );
 
         if ($baseSlug === '') {
             $baseSlug = 'product';
@@ -1134,8 +1270,12 @@ final class ProductController extends Controller
                     static function (
                         Builder $query
                     ) use ($ignoredProduct): void {
-                        $query->whereKeyNot(
-                            $ignoredProduct->getKey()
+                        $query->where(
+                            $ignoredProduct
+                                ->getKeyName(),
+                            '!=',
+                            $ignoredProduct
+                                ->getKey()
                         );
                     }
                 )
@@ -1145,7 +1285,9 @@ final class ProductController extends Controller
                 )
                 ->exists()
         ) {
-            $slug = "{$baseSlug}-{$counter}";
+            $slug =
+                "{$baseSlug}-{$counter}";
+
             $counter++;
         }
 
@@ -1153,10 +1295,7 @@ final class ProductController extends Controller
     }
 
     /**
-     * Set only database attributes that exist on the current product model.
-     *
-     * This keeps moderation state updates compatible when optional audit
-     * columns are introduced by separate migrations.
+     * Set only attributes available on the products table.
      *
      * @param array<string, mixed> $values
      */
@@ -1164,7 +1303,8 @@ final class ProductController extends Controller
         Product $product,
         array $values
     ): void {
-        $attributes = $product->getAttributes();
+        $attributes =
+            $product->getAttributes();
 
         foreach ($values as $key => $value) {
             if (
