@@ -1,28 +1,47 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, HasApiTokens;
+    use HasApiTokens;
+    use HasFactory;
+    use Notifiable;
 
     /**
      * Available user roles.
      */
-    public const ROLE_ADMIN = 'admin';
-    public const ROLE_CUSTOMER = 'customer';
+    public const ROLE_ADMIN =
+        'admin';
+
+    public const ROLE_CUSTOMER =
+        'customer';
 
     /**
      * Available account statuses.
      */
-    public const STATUS_ACTIVE = 'active';
-    public const STATUS_INACTIVE = 'inactive';
-    public const STATUS_BLOCKED = 'blocked';
+    public const STATUS_ACTIVE =
+        'active';
+
+    public const STATUS_INACTIVE =
+        'inactive';
+
+    public const STATUS_BLOCKED =
+        'blocked';
+
+    /**
+     * Available seller membership statuses.
+     */
+    public const SELLER_MEMBER_ACTIVE =
+        'active';
 
     /**
      * The attributes that are mass assignable.
@@ -41,7 +60,7 @@ class User extends Authenticatable
     ];
 
     /**
-     * The attributes that should be hidden for serialization.
+     * The attributes hidden during serialization.
      *
      * @var array<int, string>
      */
@@ -52,36 +71,118 @@ class User extends Authenticatable
 
     /**
      * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
      */
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'email_verified_at' =>
+                'datetime',
+
+            'password' =>
+                'hashed',
         ];
     }
 
     /**
-     * Check if user is admin.
+     * Seller businesses to which this user belongs.
+     */
+    public function sellerProfiles(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            SellerProfile::class,
+            'seller_members',
+            'user_id',
+            'seller_profile_id'
+        )->withPivot([
+            'id',
+            'role',
+            'status',
+            'joined_at',
+        ]);
+    }
+
+    /**
+     * Determine whether the user is an active member
+     * of the supplied seller business.
+     */
+    public function belongsToSeller(
+        SellerProfile $sellerProfile
+    ): bool {
+        if (
+            !$this->exists
+            || !$sellerProfile->exists
+        ) {
+            return false;
+        }
+
+        return $this
+            ->sellerProfiles()
+            ->whereKey(
+                $sellerProfile->getKey()
+            )
+            ->wherePivot(
+                'status',
+                self::SELLER_MEMBER_ACTIVE
+            )
+            ->exists();
+    }
+
+    /**
+     * Determine whether the user owns
+     * the supplied seller business.
+     */
+    public function ownsSeller(
+        SellerProfile $sellerProfile
+    ): bool {
+        if (
+            !$this->exists
+            || !$sellerProfile->exists
+        ) {
+            return false;
+        }
+
+        return $this
+            ->sellerProfiles()
+            ->whereKey(
+                $sellerProfile->getKey()
+            )
+            ->wherePivot(
+                'role',
+                'owner'
+            )
+            ->wherePivot(
+                'status',
+                self::SELLER_MEMBER_ACTIVE
+            )
+            ->exists();
+    }
+
+    /**
+     * Check whether the user is an administrator.
      */
     public function isAdmin(): bool
     {
-        return $this->role === self::ROLE_ADMIN;
+        return $this->role ===
+            self::ROLE_ADMIN;
     }
 
     /**
-     * Check if user is customer.
+     * Check whether the user is a customer.
      */
     public function isCustomer(): bool
     {
-        return $this->role === self::ROLE_CUSTOMER;
+        return $this->role ===
+            self::ROLE_CUSTOMER;
     }
 
     /**
-     * Check if user account is active.
+     * Check whether the account is active.
      */
     public function isActive(): bool
     {
-        return $this->status === self::STATUS_ACTIVE;
+        return $this->status ===
+            self::STATUS_ACTIVE;
     }
 }

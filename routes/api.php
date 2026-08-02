@@ -551,6 +551,19 @@ Route::middleware('auth:sanctum')
                                 'products.media.reorder'
                             );
 
+                        Route::post(
+                            'products/{product:public_id}'
+                            .'/media/{media:public_id}/retry-processing',
+                            [
+                                ProductMediaController::class,
+                                'retryProcessing',
+                            ]
+                        )
+                            ->middleware('throttle:10,1')
+                            ->name(
+                                'products.media.retry-processing'
+                            );
+
                         Route::patch(
                             'products/{product:public_id}'
                             .'/media/{media:public_id}/primary',

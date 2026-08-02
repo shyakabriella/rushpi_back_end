@@ -1026,7 +1026,7 @@ use OpenApi\Attributes as OA;
     requestBody: new OA\RequestBody(
         required: true,
         content: new OA\JsonContent(
-            ref: '#/components/schemas/ModerateProductRequest'
+            ref: '#/components/schemas/StructuredModerateProductRequest'
         )
     ),
     responses: [

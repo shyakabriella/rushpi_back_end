@@ -592,7 +592,7 @@ PHP
                         bcrypt('Password123!'),
 
                     'role' =>
-                        'seller_owner',
+                        'customer',
 
                     'status' =>
                         'active',
