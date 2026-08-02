@@ -7,6 +7,7 @@ use App\Http\Controllers\API\V1\Admin\BrandController;
 use App\Http\Controllers\API\V1\Admin\CategoryController;
 use App\Http\Controllers\API\V1\Admin\ProductModerationController;
 use App\Http\Controllers\API\V1\Admin\SellerVerificationController;
+use App\Http\Controllers\API\V1\Admin\SpecificationDefinitionController;
 use App\Http\Controllers\API\V1\Public\CatalogController;
 use App\Http\Controllers\API\V1\Seller\InventoryController;
 use App\Http\Controllers\API\V1\Seller\ProductController;
@@ -488,6 +489,70 @@ Route::middleware('auth:sanctum')
                     'brands',
                     BrandController::class
                 );
+
+                /*
+                |--------------------------------------------------------------------------
+                | Specification definition administration
+                |--------------------------------------------------------------------------
+                */
+
+                Route::prefix('specification-definitions')
+                    ->name('specification-definitions.')
+                    ->controller(
+                        SpecificationDefinitionController::class
+                    )
+                    ->group(function (): void {
+                        Route::get(
+                            '/',
+                            'index'
+                        )->name('index');
+
+                        Route::post(
+                            '/',
+                            'store'
+                        )
+                            ->middleware('throttle:30,1')
+                            ->name('store');
+
+                        /*
+                         * Keep fixed action routes before the dynamic
+                         * specification-definition routes.
+                         */
+
+                        Route::patch(
+                            '/{specificationDefinition:public_id}/activate',
+                            'activate'
+                        )
+                            ->middleware('throttle:30,1')
+                            ->name('activate');
+
+                        Route::patch(
+                            '/{specificationDefinition:public_id}/deactivate',
+                            'deactivate'
+                        )
+                            ->middleware('throttle:30,1')
+                            ->name('deactivate');
+
+                        Route::get(
+                            '/{specificationDefinition:public_id}',
+                            'show'
+                        )->name('show');
+
+                        Route::put(
+                            '/{specificationDefinition:public_id}',
+                            'update'
+                        )->name('update');
+
+                        Route::patch(
+                            '/{specificationDefinition:public_id}',
+                            'update'
+                        )->name('patch');
+
+                        Route::delete(
+                            '/{specificationDefinition:public_id}',
+                            'destroy'
+                        )->name('destroy');
+                    });
 
                 /*
                 |--------------------------------------------------------------------------
