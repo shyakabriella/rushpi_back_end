@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\API\RegisterController;
 use App\Http\Controllers\API\V1\Admin\BrandController;
 use App\Http\Controllers\API\V1\Admin\CategoryController;
+use App\Http\Controllers\API\V1\Admin\CategorySpecificationController;
 use App\Http\Controllers\API\V1\Admin\ProductModerationController;
 use App\Http\Controllers\API\V1\Admin\SellerVerificationController;
 use App\Http\Controllers\API\V1\Admin\SpecificationDefinitionController;
@@ -515,8 +516,8 @@ Route::middleware('auth:sanctum')
                             ->name('store');
 
                         /*
-                         * Keep fixed action routes before the dynamic
-                         * specification-definition routes.
+                         * Fixed action routes must remain before the
+                         * dynamic specification-definition route.
                          */
 
                         Route::patch(
@@ -550,6 +551,103 @@ Route::middleware('auth:sanctum')
 
                         Route::delete(
                             '/{specificationDefinition:public_id}',
+                            'destroy'
+                        )->name('destroy');
+                    });
+
+                /*
+                |--------------------------------------------------------------------------
+                | Category specification administration
+                |--------------------------------------------------------------------------
+                |
+                | These endpoints assign reusable specification definitions
+                | to categories and configure whether they are required,
+                | filterable, variant attributes or category-specific fields.
+                |
+                */
+
+                Route::prefix(
+                    'categories/{category:public_id}/specifications'
+                )
+                    ->name('categories.specifications.')
+                    ->controller(
+                        CategorySpecificationController::class
+                    )
+                    ->group(function (): void {
+                        /*
+                         * List direct assignments for the selected category.
+                         */
+
+                        Route::get(
+                            '/',
+                            'index'
+                        )->name('index');
+
+                        /*
+                         * Assign a reusable specification to the category.
+                         */
+
+                        Route::post(
+                            '/',
+                            'store'
+                        )
+                            ->middleware('throttle:30,1')
+                            ->name('store');
+
+                        /*
+                         * Keep fixed routes before dynamic assignment routes.
+                         */
+
+                        Route::patch(
+                            '/reorder',
+                            'reorder'
+                        )
+                            ->middleware('throttle:30,1')
+                            ->name('reorder');
+
+                        Route::patch(
+                            '/{categorySpecification:public_id}/activate',
+                            'activate'
+                        )
+                            ->middleware('throttle:30,1')
+                            ->name('activate');
+
+                        Route::patch(
+                            '/{categorySpecification:public_id}/deactivate',
+                            'deactivate'
+                        )
+                            ->middleware('throttle:30,1')
+                            ->name('deactivate');
+
+                        /*
+                         * View one category specification assignment.
+                         */
+
+                        Route::get(
+                            '/{categorySpecification:public_id}',
+                            'show'
+                        )->name('show');
+
+                        /*
+                         * Update the category-specific configuration.
+                         */
+
+                        Route::put(
+                            '/{categorySpecification:public_id}',
+                            'update'
+                        )->name('update');
+
+                        Route::patch(
+                            '/{categorySpecification:public_id}',
+                            'update'
+                        )->name('patch');
+
+                        /*
+                         * Remove an unused assignment.
+                         */
+
+                        Route::delete(
+                            '/{categorySpecification:public_id}',
                             'destroy'
                         )->name('destroy');
                     });

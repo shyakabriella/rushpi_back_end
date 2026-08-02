@@ -7,101 +7,153 @@ namespace App\Http\Controllers\API\V1\Seller;
 use App\Enums\ProductStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Seller\StoreProductRequest;
-use App\Http\Requests\Seller\SubmitProductForReviewRequest;
 use App\Http\Requests\Seller\UpdateProductRequest;
 use App\Http\Resources\SellerProductResource;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\SellerProfile;
+use App\Services\Catalog\ProductSpecificationValidator;
+use BackedEnum;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Throwable;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
-class ProductController extends Controller
+final class ProductController extends Controller
 {
     /**
-     * Display products belonging to one seller profile.
+     * List products belonging to an approved seller.
      */
     public function index(
         Request $request,
         SellerProfile $sellerProfile
     ): JsonResponse {
-        if (! $this->canManageProducts(
-            $request,
-            $sellerProfile
-        )) {
-            return $this->forbiddenResponse();
-        }
+        $validated = $request->validate([
+            'q' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
 
-        $perPage = min(
-            max(
-                (int) $request->input('per_page', 15),
-                1
-            ),
-            100
-        );
+            'status' => [
+                'nullable',
+                Rule::enum(ProductStatus::class),
+            ],
 
-        $query = Product::query()
-            ->where(
-                'seller_profile_id',
-                $sellerProfile->getKey()
-            )
+            'category' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+
+            'brand' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+
+            'per_page' => [
+                'nullable',
+                'integer',
+                'min:1',
+                'max:100',
+            ],
+        ]);
+
+        $query = $sellerProfile
+            ->products()
             ->with([
-                'category:id,public_id,name,slug',
+                'category:id,public_id,parent_id,name,slug,is_active',
 
-                'brand:id,public_id,name,slug,logo_path',
+                'brand:id,public_id,name,slug,logo_path,is_active',
+
+                'variants' => static function (
+                    Builder $variantQuery
+                ): void {
+                    $variantQuery
+                        ->orderByDesc('is_default')
+                        ->orderBy('sort_order')
+                        ->orderBy('id');
+                },
+
+                'variants.price',
+
+                'variants.inventoryStock',
+
+                'media' => static function (
+                    Builder $mediaQuery
+                ): void {
+                    $mediaQuery
+                        ->orderByDesc('is_primary')
+                        ->orderBy('sort_order')
+                        ->orderBy('id');
+                },
             ])
             ->withCount([
                 'variants',
-                'activeVariants',
                 'media',
-                'moderationReviews',
             ]);
 
-        $search = trim(
-            (string) $request->input('q')
-        );
+        if (
+            isset($validated['q'])
+            && trim((string) $validated['q']) !== ''
+        ) {
+            $search = addcslashes(
+                trim((string) $validated['q']),
+                '\\%_'
+            );
 
-        if ($search !== '') {
+            $like = "%{$search}%";
+
             $query->where(
-                function (
-                    Builder $productQuery
-                ) use ($search): void {
-                    $productQuery
+                static function (
+                    Builder $searchQuery
+                ) use ($like): void {
+                    $searchQuery
                         ->where(
                             'name',
                             'like',
-                            '%'.$search.'%'
+                            $like
                         )
                         ->orWhere(
                             'slug',
                             'like',
-                            '%'.$search.'%'
+                            $like
                         )
                         ->orWhere(
                             'short_description',
                             'like',
-                            '%'.$search.'%'
+                            $like
+                        )
+                        ->orWhere(
+                            'description',
+                            'like',
+                            $like
                         )
                         ->orWhereHas(
                             'variants',
-                            function (
+                            static function (
                                 Builder $variantQuery
-                            ) use ($search): void {
+                            ) use ($like): void {
                                 $variantQuery
                                     ->where(
                                         'sku',
                                         'like',
-                                        '%'.$search.'%'
+                                        $like
+                                    )
+                                    ->orWhere(
+                                        'barcode',
+                                        'like',
+                                        $like
                                     )
                                     ->orWhere(
                                         'name',
                                         'like',
-                                        '%'.$search.'%'
+                                        $like
                                     );
                             }
                         );
@@ -109,206 +161,224 @@ class ProductController extends Controller
             );
         }
 
-        $status = trim(
-            (string) $request->input('status')
-        );
-
-        if ($status !== '') {
-            $productStatus =
-                ProductStatus::tryFrom($status);
-
-            if ($productStatus === null) {
-                return response()->json([
-                    'success' => false,
-
-                    'message' =>
-                        'The selected product status is invalid.',
-
-                    'data' => null,
-                ], 422);
-            }
-
+        if (isset($validated['status'])) {
             $query->where(
                 'status',
-                $productStatus->value
+                $validated['status']
             );
         }
 
-        $categoryPublicId = trim(
-            (string) $request->input('category')
-        );
+        if (
+            isset($validated['category'])
+            && trim((string) $validated['category']) !== ''
+        ) {
+            $categoryIdentifier = trim(
+                (string) $validated['category']
+            );
 
-        if ($categoryPublicId !== '') {
             $query->whereHas(
                 'category',
-                function (
+                static function (
                     Builder $categoryQuery
-                ) use ($categoryPublicId): void {
+                ) use ($categoryIdentifier): void {
                     $categoryQuery->where(
-                        'public_id',
-                        $categoryPublicId
+                        static function (
+                            Builder $identifierQuery
+                        ) use ($categoryIdentifier): void {
+                            $identifierQuery
+                                ->where(
+                                    'public_id',
+                                    $categoryIdentifier
+                                )
+                                ->orWhere(
+                                    'slug',
+                                    $categoryIdentifier
+                                );
+                        }
                     );
                 }
             );
         }
 
-        $brandPublicId = trim(
-            (string) $request->input('brand')
-        );
+        if (
+            isset($validated['brand'])
+            && trim((string) $validated['brand']) !== ''
+        ) {
+            $brandIdentifier = trim(
+                (string) $validated['brand']
+            );
 
-        if ($brandPublicId !== '') {
             $query->whereHas(
                 'brand',
-                function (
+                static function (
                     Builder $brandQuery
-                ) use ($brandPublicId): void {
+                ) use ($brandIdentifier): void {
                     $brandQuery->where(
-                        'public_id',
-                        $brandPublicId
+                        static function (
+                            Builder $identifierQuery
+                        ) use ($brandIdentifier): void {
+                            $identifierQuery
+                                ->where(
+                                    'public_id',
+                                    $brandIdentifier
+                                )
+                                ->orWhere(
+                                    'slug',
+                                    $brandIdentifier
+                                );
+                        }
                     );
                 }
             );
         }
 
         $products = $query
-            ->orderByDesc('created_at')
-            ->paginate($perPage)
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->paginate(
+                (int) ($validated['per_page'] ?? 15)
+            )
             ->withQueryString();
 
-        return SellerProductResource::collection(
-            $products
-        )
-            ->additional([
-                'success' => true,
+        return response()->json([
+            'success' => true,
 
-                'message' =>
-                    'Seller products retrieved successfully.',
-            ])
-            ->response();
+            'message' =>
+                'Seller products retrieved successfully.',
+
+            'data' =>
+                SellerProductResource::collection(
+                    $products->getCollection()
+                )->resolve($request),
+
+            'meta' => [
+                'current_page' =>
+                    $products->currentPage(),
+
+                'from' =>
+                    $products->firstItem(),
+
+                'last_page' =>
+                    $products->lastPage(),
+
+                'path' =>
+                    $products->path(),
+
+                'per_page' =>
+                    $products->perPage(),
+
+                'to' =>
+                    $products->lastItem(),
+
+                'total' =>
+                    $products->total(),
+            ],
+
+            'links' => [
+                'first' =>
+                    $products->url(1),
+
+                'last' =>
+                    $products->url(
+                        $products->lastPage()
+                    ),
+
+                'previous' =>
+                    $products->previousPageUrl(),
+
+                'next' =>
+                    $products->nextPageUrl(),
+            ],
+        ]);
     }
 
     /**
-     * Create a new seller product in draft status.
+     * Create a seller product draft.
      */
     public function store(
         StoreProductRequest $request,
         SellerProfile $sellerProfile
     ): JsonResponse {
-        try {
-            $product = DB::transaction(
-                function () use (
-                    $request,
-                    $sellerProfile
-                ): Product {
-                    $data = $request->validated();
+        $category = $request->category();
 
-                    $category = Category::query()
-                        ->where(
-                            'public_id',
-                            $data['category_public_id']
-                        )
-                        ->where('is_active', true)
-                        ->firstOrFail();
-
-                    $brand = null;
-
-                    if (! empty(
-                        $data['brand_public_id']
-                    )) {
-                        $brand = Brand::query()
-                            ->where(
-                                'public_id',
-                                $data['brand_public_id']
-                            )
-                            ->where('is_active', true)
-                            ->firstOrFail();
-                    }
-
-                    unset(
-                        $data['category_public_id'],
-                        $data['brand_public_id']
-                    );
-
-                    if (
-                        array_key_exists('slug', $data)
-                        && blank($data['slug'])
-                    ) {
-                        unset($data['slug']);
-                    }
-
-                    $product = new Product($data);
-
-                    $product->seller_profile_id =
-                        $sellerProfile->getKey();
-
-                    $product->category_id =
-                        $category->getKey();
-
-                    $product->brand_id =
-                        $brand?->getKey();
-
-                    $product->created_by =
-                        $request->user()?->getKey();
-
-                    $product->updated_by =
-                        $request->user()?->getKey();
-
-                    $product->status =
-                        ProductStatus::DRAFT;
-
-                    $product->save();
-
-                    return $product;
-                },
-                5
-            );
-
-            $this->loadProductRelations($product);
-
-            return response()->json([
-                'success' => true,
-
-                'message' =>
-                    'Product draft created successfully.',
-
-                'data' =>
-                    new SellerProductResource($product),
-            ], 201);
-        } catch (Throwable $exception) {
-            report($exception);
-
-            return response()->json([
-                'success' => false,
-
-                'message' =>
-                    'Unable to create the product.',
-
-                'data' => null,
-            ], 500);
+        if (!$category instanceof Category) {
+            throw ValidationException::withMessages([
+                'category_public_id' => [
+                    'The selected category could not be resolved.',
+                ],
+            ]);
         }
+
+        $brand = $request->brand();
+
+        $product = DB::transaction(
+            function () use (
+                $request,
+                $sellerProfile,
+                $category,
+                $brand
+            ): Product {
+                $data = $request->validated();
+
+                unset(
+                    $data['category_public_id'],
+                    $data['brand_public_id']
+                );
+
+                $data['category_id'] =
+                    $category->getKey();
+
+                $data['brand_id'] =
+                    $brand?->getKey();
+
+                $data['status'] =
+                    ProductStatus::DRAFT->value;
+
+                $data['specifications'] =
+                    $request->normalizedSpecifications();
+
+                if (
+                    !isset($data['slug'])
+                    || trim((string) $data['slug']) === ''
+                ) {
+                    $data['slug'] =
+                        $this->generateUniqueSlug(
+                            (string) $data['name']
+                        );
+                }
+
+                return $sellerProfile
+                    ->products()
+                    ->create($data);
+            }
+        );
+
+        $this->loadProductRelations($product);
+
+        return response()->json([
+            'success' => true,
+
+            'message' =>
+                'Product draft created successfully.',
+
+            'data' => (
+                new SellerProductResource($product)
+            )->resolve($request),
+        ], 201);
     }
 
     /**
-     * Display one seller product.
+     * Show one seller product.
      */
     public function show(
         Request $request,
         SellerProfile $sellerProfile,
         Product $product
     ): JsonResponse {
-        if (! $this->canManageProducts(
-            $request,
-            $sellerProfile
-        )) {
-            return $this->forbiddenResponse();
-        }
-
-        if (! $this->belongsToSeller(
-            $product,
-            $sellerProfile
-        )) {
-            return $this->productNotFoundResponse();
-        }
+        $this->ensureProductBelongsToSeller(
+            $sellerProfile,
+            $product
+        );
 
         $this->loadProductRelations($product);
 
@@ -318,301 +388,189 @@ class ProductController extends Controller
             'message' =>
                 'Seller product retrieved successfully.',
 
-            'data' =>
-                new SellerProductResource($product),
+            'data' => (
+                new SellerProductResource($product)
+            )->resolve($request),
         ]);
     }
 
     /**
-     * Update a seller product.
+     * Update seller product information.
      */
     public function update(
         UpdateProductRequest $request,
         SellerProfile $sellerProfile,
         Product $product
     ): JsonResponse {
-        if (! $this->belongsToSeller(
-            $product,
-            $sellerProfile
-        )) {
-            return $this->productNotFoundResponse();
-        }
+        $this->ensureProductBelongsToSeller(
+            $sellerProfile,
+            $product
+        );
 
-        try {
-            DB::transaction(
-                function () use (
-                    $request,
-                    $product
-                ): void {
-                    $lockedProduct = Product::query()
-                        ->whereKey($product->getKey())
-                        ->lockForUpdate()
-                        ->firstOrFail();
+        $currentStatus = $this->productStatus(
+            $product
+        );
 
-                    $data = $request->validated();
-
-                    if (
-                        array_key_exists(
-                            'category_public_id',
-                            $data
-                        )
-                    ) {
-                        $category = Category::query()
-                            ->where(
-                                'public_id',
-                                $data['category_public_id']
-                            )
-                            ->where('is_active', true)
-                            ->firstOrFail();
-
-                        $lockedProduct->category_id =
-                            $category->getKey();
-
-                        unset(
-                            $data['category_public_id']
-                        );
-                    }
-
-                    if (
-                        array_key_exists(
-                            'brand_public_id',
-                            $data
-                        )
-                    ) {
-                        if (
-                            $data['brand_public_id'] === null
-                            || $data['brand_public_id'] === ''
-                        ) {
-                            $lockedProduct->brand_id = null;
-                        } else {
-                            $brand = Brand::query()
-                                ->where(
-                                    'public_id',
-                                    $data['brand_public_id']
-                                )
-                                ->where('is_active', true)
-                                ->firstOrFail();
-
-                            $lockedProduct->brand_id =
-                                $brand->getKey();
-                        }
-
-                        unset(
-                            $data['brand_public_id']
-                        );
-                    }
-
-                    if (
-                        array_key_exists('slug', $data)
-                        && blank($data['slug'])
-                    ) {
-                        unset($data['slug']);
-                    }
-
-                    $lockedProduct->fill($data);
-
-                    $lockedProduct->updated_by =
-                        $request->user()?->getKey();
-
-                    /*
-                     * Public catalog changes to approved or
-                     * rejected products require a new review.
-                     */
-                    if (
-                        $lockedProduct->isDirty()
-                        && in_array(
-                            $this->resolveProductStatus(
-                                $lockedProduct
-                            ),
-                            [
-                                ProductStatus::APPROVED,
-                                ProductStatus::REJECTED,
-                            ],
-                            true
-                        )
-                    ) {
-                        $this->returnProductToDraft(
-                            $lockedProduct
-                        );
-                    }
-
-                    $lockedProduct->save();
-                },
-                5
-            );
-
-            $product->refresh();
-
-            $this->loadProductRelations($product);
-
-            return response()->json([
-                'success' => true,
-
-                'message' =>
-                    'Product updated successfully.',
-
-                'data' =>
-                    new SellerProductResource($product),
-            ]);
-        } catch (ModelNotFoundException) {
-            return $this->productNotFoundResponse();
-        } catch (Throwable $exception) {
-            report($exception);
-
+        if (
+            in_array(
+                $currentStatus,
+                [
+                    ProductStatus::PENDING_REVIEW,
+                    ProductStatus::SUSPENDED,
+                    ProductStatus::ARCHIVED,
+                ],
+                true
+            )
+        ) {
             return response()->json([
                 'success' => false,
 
                 'message' =>
-                    'Unable to update the product.',
+                    'This product cannot be edited while its status is '
+                    .$currentStatus->value.'.',
 
-                'data' => null,
-            ], 500);
-        }
-    }
-
-    /**
-     * Submit a complete product for administrator review.
-     */
-    public function submitForReview(
-        SubmitProductForReviewRequest $request,
-        SellerProfile $sellerProfile,
-        Product $product
-    ): JsonResponse {
-        if (! $this->belongsToSeller(
-            $product,
-            $sellerProfile
-        )) {
-            return $this->productNotFoundResponse();
+                'errors' => [
+                    'status' => [
+                        'Only draft, rejected or approved products can be edited.',
+                    ],
+                ],
+            ], 409);
         }
 
-        try {
-            $submittedProduct = DB::transaction(
-                function () use (
-                    $request,
+        $returnedToDraft = false;
+
+        $updatedProduct = DB::transaction(
+            function () use (
+                $request,
+                $sellerProfile,
+                $product,
+                $currentStatus,
+                &$returnedToDraft
+            ): Product {
+                $lockedProduct = Product::query()
+                    ->whereKey($product->getKey())
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                $this->ensureProductBelongsToSeller(
                     $sellerProfile,
-                    $product
-                ): ?Product {
-                    /*
-                     * Lock the product so two submission requests
-                     * cannot change its moderation status together.
-                     */
-                    $lockedProduct = Product::query()
-                        ->whereKey($product->getKey())
-                        ->lockForUpdate()
-                        ->firstOrFail();
+                    $lockedProduct
+                );
 
-                    if (! $this->belongsToSeller(
-                        $lockedProduct,
-                        $sellerProfile
-                    )) {
-                        return null;
+                $data = $request->validated();
+
+                if (
+                    array_key_exists(
+                        'category_public_id',
+                        $data
+                    )
+                ) {
+                    $category = $request->category();
+
+                    if (!$category instanceof Category) {
+                        throw ValidationException::withMessages([
+                            'category_public_id' => [
+                                'The selected category could not be resolved.',
+                            ],
+                        ]);
                     }
 
-                    $status = $this->resolveProductStatus(
+                    $data['category_id'] =
+                        $category->getKey();
+
+                    unset(
+                        $data['category_public_id']
+                    );
+                }
+
+                if (
+                    array_key_exists(
+                        'brand_public_id',
+                        $data
+                    )
+                ) {
+                    $brand = $request
+                        ->submittedBrand();
+
+                    $data['brand_id'] =
+                        $brand?->getKey();
+
+                    unset(
+                        $data['brand_public_id']
+                    );
+                }
+
+                if (
+                    array_key_exists('slug', $data)
+                    && (
+                        $data['slug'] === null
+                        || trim(
+                            (string) $data['slug']
+                        ) === ''
+                    )
+                ) {
+                    $finalName = (string) (
+                        $data['name']
+                        ?? $lockedProduct->name
+                    );
+
+                    $data['slug'] =
+                        $this->generateUniqueSlug(
+                            $finalName,
+                            $lockedProduct
+                        );
+                }
+
+                $lockedProduct->fill($data);
+
+                $sensitiveChange =
+                    $lockedProduct->isDirty(
+                        $this->moderatedProductFields()
+                    );
+
+                if (
+                    $sensitiveChange
+                    && in_array(
+                        $currentStatus,
+                        [
+                            ProductStatus::APPROVED,
+                            ProductStatus::REJECTED,
+                        ],
+                        true
+                    )
+                ) {
+                    $this->returnProductToDraft(
                         $lockedProduct
                     );
 
-                    /*
-                     * Recheck the status inside the transaction.
-                     * The request validation may have happened
-                     * shortly before another request changed it.
-                     */
-                    if (
-                        ! in_array(
-                            $status,
-                            [
-                                ProductStatus::DRAFT,
-                                ProductStatus::REJECTED,
-                            ],
-                            true
-                        )
-                    ) {
-                        return null;
-                    }
+                    $returnedToDraft = true;
+                }
 
-                    /*
-                     * Defence-in-depth readiness verification.
-                     * The form request already provides detailed
-                     * validation messages.
-                     */
-                    if (! $this->isReadyForSubmission(
-                        $lockedProduct
-                    )) {
-                        return null;
-                    }
+                $lockedProduct->save();
 
-                    $lockedProduct->status =
-                        ProductStatus::PENDING_REVIEW;
-
-                    $lockedProduct->submitted_at = now();
-
-                    /*
-                     * Clear previous moderation decisions.
-                     */
-                    $lockedProduct->approved_at = null;
-
-                    $lockedProduct->approved_by = null;
-
-                    $lockedProduct->rejected_at = null;
-
-                    $lockedProduct->rejection_reason = null;
-
-                    $lockedProduct->suspended_at = null;
-
-                    $lockedProduct->suspension_reason = null;
-
-                    $lockedProduct->archived_at = null;
-
-                    $lockedProduct->updated_by =
-                        $request->user()?->getKey();
-
-                    $lockedProduct->save();
-
-                    return $lockedProduct;
-                },
-                5
-            );
-
-            if (! $submittedProduct instanceof Product) {
-                return response()->json([
-                    'success' => false,
-
-                    'message' =>
-                        'The product could not be submitted because its status or catalog information changed. Review the product and try again.',
-
-                    'data' => null,
-                ], 409);
+                return $lockedProduct;
             }
+        );
 
-            $this->loadProductRelations(
-                $submittedProduct
-            );
+        $this->loadProductRelations(
+            $updatedProduct
+        );
 
-            return response()->json([
-                'success' => true,
+        $message = $returnedToDraft
+            ? 'Product updated successfully and returned to draft for moderation.'
+            : 'Product updated successfully.';
 
-                'message' =>
-                    'Product submitted for review successfully.',
+        return response()->json([
+            'success' => true,
 
-                'data' =>
-                    new SellerProductResource(
-                        $submittedProduct
-                    ),
-            ]);
-        } catch (ModelNotFoundException) {
-            return $this->productNotFoundResponse();
-        } catch (Throwable $exception) {
-            report($exception);
+            'message' => $message,
 
-            return response()->json([
-                'success' => false,
-
-                'message' =>
-                    'Unable to submit the product for review.',
-
-                'data' => null,
-            ], 500);
-        }
+            'data' => (
+                new SellerProductResource(
+                    $updatedProduct
+                )
+            )->resolve($request),
+        ]);
     }
 
     /**
@@ -623,23 +581,12 @@ class ProductController extends Controller
         SellerProfile $sellerProfile,
         Product $product
     ): JsonResponse {
-        if (! $this->canManageProducts(
-            $request,
-            $sellerProfile
-        )) {
-            return $this->forbiddenResponse();
-        }
-
-        if (! $this->belongsToSeller(
-            $product,
-            $sellerProfile
-        )) {
-            return $this->productNotFoundResponse();
-        }
-
-        $status = $this->resolveProductStatus(
+        $this->ensureProductBelongsToSeller(
+            $sellerProfile,
             $product
         );
+
+        $status = $this->productStatus($product);
 
         if (
             $status === ProductStatus::PENDING_REVIEW
@@ -650,280 +597,588 @@ class ProductController extends Controller
                 'message' =>
                     'A product under moderation cannot be archived.',
 
-                'data' => null,
+                'errors' => [
+                    'status' => [
+                        'Wait for the moderation decision before archiving this product.',
+                    ],
+                ],
             ], 409);
         }
 
         if ($status === ProductStatus::ARCHIVED) {
             return response()->json([
-                'success' => false,
-
-                'message' =>
-                    'This product is already archived.',
-
-                'data' => null,
-            ], 409);
-        }
-
-        try {
-            DB::transaction(
-                function () use (
-                    $request,
-                    $product
-                ): void {
-                    $lockedProduct = Product::query()
-                        ->whereKey($product->getKey())
-                        ->lockForUpdate()
-                        ->firstOrFail();
-
-                    if (
-                        $this->resolveProductStatus(
-                            $lockedProduct
-                        ) === ProductStatus::PENDING_REVIEW
-                    ) {
-                        return;
-                    }
-
-                    $lockedProduct->status =
-                        ProductStatus::ARCHIVED;
-
-                    $lockedProduct->archived_at = now();
-
-                    $lockedProduct->updated_by =
-                        $request->user()?->getKey();
-
-                    $lockedProduct->save();
-                },
-                5
-            );
-
-            return response()->json([
                 'success' => true,
 
                 'message' =>
-                    'Product archived successfully.',
+                    'Product is already archived.',
 
                 'data' => null,
             ]);
-        } catch (ModelNotFoundException) {
-            return $this->productNotFoundResponse();
-        } catch (Throwable $exception) {
-            report($exception);
-
-            return response()->json([
-                'success' => false,
-
-                'message' =>
-                    'Unable to archive the product.',
-
-                'data' => null,
-            ], 500);
         }
+
+        DB::transaction(
+            function () use (
+                $sellerProfile,
+                $product
+            ): void {
+                $lockedProduct = Product::query()
+                    ->whereKey($product->getKey())
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                $this->ensureProductBelongsToSeller(
+                    $sellerProfile,
+                    $lockedProduct
+                );
+
+                $this->setExistingAttributes(
+                    $lockedProduct,
+                    [
+                        'status' =>
+                            ProductStatus::ARCHIVED->value,
+
+                        'archived_at' =>
+                            now(),
+                    ]
+                );
+
+                $lockedProduct->save();
+            }
+        );
+
+        return response()->json([
+            'success' => true,
+
+            'message' =>
+                'Product archived successfully.',
+
+            'data' => null,
+        ]);
     }
 
     /**
-     * Verify product completeness before moderation.
+     * Submit a complete product for administrator moderation.
      */
-    private function isReadyForSubmission(
-        Product $product
-    ): bool {
-        $categoryIsActive = $product->category()
-            ->where('is_active', true)
-            ->whereNull('deleted_at')
-            ->exists();
+    public function submitForReview(
+        Request $request,
+        SellerProfile $sellerProfile,
+        Product $product,
+        ProductSpecificationValidator $specificationValidator
+    ): JsonResponse {
+        $this->ensureProductBelongsToSeller(
+            $sellerProfile,
+            $product
+        );
 
-        if (! $categoryIsActive) {
-            return false;
+        $submittedProduct = DB::transaction(
+            function () use (
+                $sellerProfile,
+                $product,
+                $specificationValidator
+            ): Product {
+                $lockedProduct = Product::query()
+                    ->whereKey($product->getKey())
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                $this->ensureProductBelongsToSeller(
+                    $sellerProfile,
+                    $lockedProduct
+                );
+
+                $status = $this->productStatus(
+                    $lockedProduct
+                );
+
+                if (
+                    !in_array(
+                        $status,
+                        [
+                            ProductStatus::DRAFT,
+                            ProductStatus::REJECTED,
+                        ],
+                        true
+                    )
+                ) {
+                    abort(
+                        409,
+                        'Only draft or rejected products can be submitted for moderation.'
+                    );
+                }
+
+                $category = $lockedProduct
+                    ->category()
+                    ->first();
+
+                if (!$category instanceof Category) {
+                    throw ValidationException::withMessages([
+                        'category' => [
+                            'The product must belong to a valid category.',
+                        ],
+                    ]);
+                }
+
+                /*
+                 * Enforce required category specifications and normalize the
+                 * final values before checking the remaining catalog data.
+                 */
+
+                $normalizedSpecifications =
+                    $specificationValidator
+                        ->validateForPublication(
+                            category: $category,
+
+                            specifications:
+                                $lockedProduct
+                                    ->specifications
+                                ?? [],
+
+                            attribute:
+                                'specifications'
+                        );
+
+                $lockedProduct->setAttribute(
+                    'specifications',
+                    $normalizedSpecifications
+                );
+
+                $readinessErrors =
+                    $this->publicationReadinessErrors(
+                        $sellerProfile,
+                        $lockedProduct,
+                        $category
+                    );
+
+                if ($readinessErrors !== []) {
+                    throw ValidationException::withMessages(
+                        $readinessErrors
+                    );
+                }
+
+                $this->setExistingAttributes(
+                    $lockedProduct,
+                    [
+                        'status' =>
+                            ProductStatus::PENDING_REVIEW
+                                ->value,
+
+                        'submitted_at' =>
+                            now(),
+
+                        'approved_at' =>
+                            null,
+
+                        'approved_by' =>
+                            null,
+
+                        'rejected_at' =>
+                            null,
+
+                        'rejected_by' =>
+                            null,
+
+                        'rejection_reason' =>
+                            null,
+
+                        'suspended_at' =>
+                            null,
+
+                        'suspended_by' =>
+                            null,
+
+                        'suspension_reason' =>
+                            null,
+                    ]
+                );
+
+                $lockedProduct->save();
+
+                return $lockedProduct;
+            }
+        );
+
+        $this->loadProductRelations(
+            $submittedProduct
+        );
+
+        return response()->json([
+            'success' => true,
+
+            'message' =>
+                'Product submitted for review successfully.',
+
+            'data' => (
+                new SellerProductResource(
+                    $submittedProduct
+                )
+            )->resolve($request),
+        ]);
+    }
+
+    /**
+     * Validate product information needed before moderation.
+     *
+     * @return array<string, array<int, string>>
+     */
+    private function publicationReadinessErrors(
+        SellerProfile $sellerProfile,
+        Product $product,
+        Category $category
+    ): array {
+        $errors = [];
+
+        if (!$this->sellerIsApproved($sellerProfile)) {
+            $errors['seller'][] =
+                'The seller business must be approved before submitting products.';
+        }
+
+        if (!$category->is_active) {
+            $errors['category'][] =
+                'The selected product category is inactive.';
+        }
+
+        if (
+            trim((string) $product->name) === ''
+        ) {
+            $errors['name'][] =
+                'The product name is required.';
+        }
+
+        if (
+            trim(
+                (string) $product->short_description
+            ) === ''
+            && trim(
+                (string) $product->description
+            ) === ''
+        ) {
+            $errors['description'][] =
+                'Provide a short description or full product description.';
         }
 
         if ($product->brand_id !== null) {
-            $brandIsActive = $product->brand()
-                ->where('is_active', true)
-                ->whereNull('deleted_at')
-                ->exists();
+            $brand = $product
+                ->brand()
+                ->first();
 
-            if (! $brandIsActive) {
-                return false;
-            }
-        }
-
-        $activeVariants = $product->variants()
-            ->where('is_active', true)
-            ->with([
-                'price',
-                'inventoryStock',
-            ])
-            ->get();
-
-        if ($activeVariants->isEmpty()) {
-            return false;
-        }
-
-        $hasDefaultVariant = $activeVariants->contains(
-            fn ($variant): bool =>
-                (bool) $variant->is_default
-        );
-
-        if (! $hasDefaultVariant) {
-            return false;
-        }
-
-        foreach ($activeVariants as $variant) {
             if (
-                $variant->price === null
-                || (float) $variant->price->selling_price
-                    <= 0
+                !$brand instanceof Brand
+                || !$brand->is_active
             ) {
-                return false;
-            }
-
-            if ($variant->inventoryStock === null) {
-                return false;
+                $errors['brand'][] =
+                    'The selected product brand is inactive or unavailable.';
             }
         }
 
-        $hasMedia = $product->media()->exists();
+        $activeVariantsQuery = $product
+            ->variants()
+            ->where(
+                'is_active',
+                true
+            );
 
-        if (! $hasMedia) {
-            return false;
+        if (
+            !(clone $activeVariantsQuery)->exists()
+        ) {
+            $errors['variants'][] =
+                'Create at least one active product variant.';
         }
 
-        return $product->media()
-            ->where('is_primary', true)
-            ->exists();
+        if (
+            !(clone $activeVariantsQuery)
+                ->whereHas(
+                    'price',
+                    static function (
+                        Builder $priceQuery
+                    ): void {
+                        $priceQuery->where(
+                            'selling_price',
+                            '>',
+                            0
+                        );
+                    }
+                )
+                ->exists()
+        ) {
+            $errors['pricing'][] =
+                'At least one active variant must have a selling price greater than zero.';
+        }
+
+        if (
+            !(clone $activeVariantsQuery)
+                ->whereHas(
+                    'inventoryStock'
+                )
+                ->exists()
+        ) {
+            $errors['inventory'][] =
+                'Configure inventory for at least one active product variant.';
+        }
+
+        if (
+            !$product
+                ->media()
+                ->exists()
+        ) {
+            $errors['media'][] =
+                'Upload at least one product image.';
+        }
+
+        return $errors;
     }
 
     /**
-     * Return a product to draft and clear old decisions.
+     * Return an approved or rejected product to draft after important edits.
      */
     private function returnProductToDraft(
         Product $product
     ): void {
-        $product->status =
-            ProductStatus::DRAFT;
+        $this->setExistingAttributes(
+            $product,
+            [
+                'status' =>
+                    ProductStatus::DRAFT->value,
 
-        $product->submitted_at = null;
+                'submitted_at' =>
+                    null,
 
-        $product->approved_at = null;
+                'approved_at' =>
+                    null,
 
-        $product->approved_by = null;
+                'approved_by' =>
+                    null,
 
-        $product->rejected_at = null;
+                'rejected_at' =>
+                    null,
 
-        $product->rejection_reason = null;
+                'rejected_by' =>
+                    null,
 
-        $product->suspended_at = null;
+                'rejection_reason' =>
+                    null,
 
-        $product->suspension_reason = null;
+                'suspended_at' =>
+                    null,
 
-        $product->archived_at = null;
+                'suspended_by' =>
+                    null,
+
+                'suspension_reason' =>
+                    null,
+            ]
+        );
     }
 
     /**
-     * Load relationships required by the seller resource.
+     * Fields that require a fresh moderation review when changed.
+     *
+     * @return array<int, string>
+     */
+    private function moderatedProductFields(): array
+    {
+        return [
+            'category_id',
+            'brand_id',
+            'name',
+            'slug',
+            'short_description',
+            'description',
+            'condition',
+            'warranty_months',
+            'specifications',
+        ];
+    }
+
+    /**
+     * Load relationships required by SellerProductResource.
      */
     private function loadProductRelations(
         Product $product
     ): void {
         $product->load([
-            'category:id,public_id,name,slug',
+            'sellerProfile',
 
-            'brand:id,public_id,name,slug,logo_path',
+            'category:id,public_id,parent_id,name,slug,is_active',
 
-            'sellerProfile:id,public_id,legal_business_name,trading_name,status',
+            'brand:id,public_id,name,slug,logo_path,is_active',
+
+            'variants' => static function (
+                Builder $variantQuery
+            ): void {
+                $variantQuery
+                    ->orderByDesc('is_default')
+                    ->orderBy('sort_order')
+                    ->orderBy('id');
+            },
+
+            'variants.price',
+
+            'variants.inventoryStock',
+
+            'variants.media' => static function (
+                Builder $mediaQuery
+            ): void {
+                $mediaQuery
+                    ->orderByDesc('is_primary')
+                    ->orderBy('sort_order')
+                    ->orderBy('id');
+            },
+
+            'media' => static function (
+                Builder $mediaQuery
+            ): void {
+                $mediaQuery
+                    ->orderByDesc('is_primary')
+                    ->orderBy('sort_order')
+                    ->orderBy('id');
+            },
+
+            'moderationReviews' => static function (
+                Builder $reviewQuery
+            ): void {
+                $reviewQuery
+                    ->orderByDesc('created_at')
+                    ->orderByDesc('id');
+            },
+
+            'moderationReviews.reviewer',
         ]);
 
         $product->loadCount([
             'variants',
-            'activeVariants',
             'media',
-            'moderationReviews',
         ]);
     }
 
     /**
-     * Determine whether the product belongs to the seller.
+     * Ensure nested product access cannot cross seller accounts.
      */
-    private function belongsToSeller(
-        Product $product,
-        SellerProfile $sellerProfile
-    ): bool {
-        return (int) $product->seller_profile_id
-            === (int) $sellerProfile->getKey();
-    }
-
-    /**
-     * Determine whether the current user may manage products.
-     */
-    private function canManageProducts(
-        Request $request,
-        SellerProfile $sellerProfile
-    ): bool {
-        $user = $request->user();
-
-        if (
-            $user === null
-            || ! $sellerProfile->isApproved()
-        ) {
-            return false;
-        }
-
-        return $sellerProfile->members()
-            ->where('user_id', $user->getKey())
-            ->where('status', 'active')
-            ->whereIn('role', [
-                'owner',
-                'manager',
-            ])
-            ->exists();
-    }
-
-    /**
-     * Resolve a product status safely.
-     */
-    private function resolveProductStatus(
+    private function ensureProductBelongsToSeller(
+        SellerProfile $sellerProfile,
         Product $product
-    ): ?ProductStatus {
-        if ($product->status instanceof ProductStatus) {
-            return $product->status;
-        }
-
-        if (is_string($product->status)) {
-            return ProductStatus::tryFrom(
-                $product->status
-            );
-        }
-
-        return null;
+    ): void {
+        abort_unless(
+            (int) $product->seller_profile_id
+                === (int) $sellerProfile->getKey(),
+            404,
+            'The selected product does not belong to this seller profile.'
+        );
     }
 
     /**
-     * Return a standard seller permission response.
+     * Read the product status regardless of whether the model uses an enum cast.
      */
-    private function forbiddenResponse(): JsonResponse
-    {
-        return response()->json([
-            'success' => false,
+    private function productStatus(
+        Product $product
+    ): ProductStatus {
+        $status = $product->status;
 
-            'message' =>
-                'You are not allowed to manage products for this seller business.',
+        if ($status instanceof ProductStatus) {
+            return $status;
+        }
 
-            'data' => null,
-        ], 403);
+        if ($status instanceof BackedEnum) {
+            $status = $status->value;
+        }
+
+        return ProductStatus::from(
+            (string) $status
+        );
     }
 
     /**
-     * Avoid exposing products belonging to another seller.
+     * Determine whether the seller profile is approved.
      */
-    private function productNotFoundResponse(): JsonResponse
-    {
-        return response()->json([
-            'success' => false,
+    private function sellerIsApproved(
+        SellerProfile $sellerProfile
+    ): bool {
+        if (
+            method_exists(
+                $sellerProfile,
+                'isApproved'
+            )
+        ) {
+            return (bool) $sellerProfile
+                ->isApproved();
+        }
 
-            'message' =>
-                'The requested product was not found.',
+        $status = $sellerProfile->status;
 
-            'data' => null,
-        ], 404);
+        if ($status instanceof BackedEnum) {
+            $status = $status->value;
+        }
+
+        return (string) $status === 'approved';
+    }
+
+    /**
+     * Generate a unique product slug.
+     */
+    private function generateUniqueSlug(
+        string $name,
+        ?Product $ignoredProduct = null
+    ): string {
+        $baseSlug = Str::slug($name);
+
+        if ($baseSlug === '') {
+            $baseSlug = 'product';
+        }
+
+        $slug = $baseSlug;
+        $counter = 2;
+
+        while (
+            Product::query()
+                ->when(
+                    $ignoredProduct !== null,
+                    static function (
+                        Builder $query
+                    ) use ($ignoredProduct): void {
+                        $query->whereKeyNot(
+                            $ignoredProduct->getKey()
+                        );
+                    }
+                )
+                ->where(
+                    'slug',
+                    $slug
+                )
+                ->exists()
+        ) {
+            $slug = "{$baseSlug}-{$counter}";
+            $counter++;
+        }
+
+        return $slug;
+    }
+
+    /**
+     * Set only database attributes that exist on the current product model.
+     *
+     * This keeps moderation state updates compatible when optional audit
+     * columns are introduced by separate migrations.
+     *
+     * @param array<string, mixed> $values
+     */
+    private function setExistingAttributes(
+        Product $product,
+        array $values
+    ): void {
+        $attributes = $product->getAttributes();
+
+        foreach ($values as $key => $value) {
+            if (
+                $key === 'status'
+                || array_key_exists(
+                    $key,
+                    $attributes
+                )
+            ) {
+                $product->setAttribute(
+                    $key,
+                    $value
+                );
+            }
+        }
     }
 }
