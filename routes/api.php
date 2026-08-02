@@ -7,6 +7,7 @@ use App\Http\Controllers\API\V1\Admin\BrandController;
 use App\Http\Controllers\API\V1\Admin\CategoryController;
 use App\Http\Controllers\API\V1\Admin\ProductModerationController;
 use App\Http\Controllers\API\V1\Admin\SellerVerificationController;
+use App\Http\Controllers\API\V1\Public\CatalogController;
 use App\Http\Controllers\API\V1\Seller\InventoryController;
 use App\Http\Controllers\API\V1\Seller\ProductController;
 use App\Http\Controllers\API\V1\Seller\ProductMediaController;
@@ -58,13 +59,63 @@ Route::controller(RegisterController::class)
 
 /*
 |--------------------------------------------------------------------------
-| Public catalog routes
+| Public customer catalog
 |--------------------------------------------------------------------------
 |
-| Public categories, brands and approved product search routes will be
-| added after the public catalog controller is implemented.
+| These endpoints require no login.
+|
+| Only approved products belonging to approved sellers are returned.
+| Private seller information, cost prices and moderation notes are excluded.
 |
 */
+
+Route::prefix('catalog')
+    ->name('api.catalog.')
+    ->middleware('throttle:120,1')
+    ->group(function (): void {
+        /*
+        |--------------------------------------------------------------------------
+        | Public categories
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            'categories',
+            [CatalogController::class, 'categories']
+        )->name('categories.index');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Public brands
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            'brands',
+            [CatalogController::class, 'brands']
+        )->name('brands.index');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Public products
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            'products',
+            [CatalogController::class, 'index']
+        )->name('products.index');
+
+        Route::get(
+            'products/{product}',
+            [CatalogController::class, 'show']
+        )
+            ->where(
+                'product',
+                '[A-Za-z0-9\-]+'
+            )
+            ->name('products.show');
+    });
 
 /*
 |--------------------------------------------------------------------------
@@ -384,6 +435,7 @@ Route::middleware('auth:sanctum')
                          * Keep this fixed path before routes containing
                          * the dynamic {media} route parameter.
                          */
+
                         Route::patch(
                             'products/{product:public_id}/media/reorder',
                             [
@@ -441,10 +493,6 @@ Route::middleware('auth:sanctum')
                 |--------------------------------------------------------------------------
                 | Product moderation
                 |--------------------------------------------------------------------------
-                |
-                | The controller and request verify that the authenticated
-                | user has the admin or superadmin role.
-                |
                 */
 
                 Route::get(
@@ -502,7 +550,9 @@ Route::middleware('auth:sanctum')
                         SellerVerificationController::class,
                         'startReview',
                     ]
-                )->name('seller-applications.start-review');
+                )->name(
+                    'seller-applications.start-review'
+                );
 
                 Route::post(
                     'seller-applications/{sellerApplication:public_id}'
