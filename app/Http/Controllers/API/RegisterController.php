@@ -662,11 +662,7 @@ class RegisterController extends BaseController
     }
 
     /**
-<<<<<<< HEAD
      * Logout API.
-=======
-     * Logout API
->>>>>>> ddc347f4d98c1bde70cb3726989af3ead08b7d92
      */
     public function logout(
         Request $request

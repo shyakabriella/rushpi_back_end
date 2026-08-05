@@ -1,40 +1,28 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Seeders;
 
+use App\Models\User;
 use Illuminate\Database\Seeder;
-<<<<<<< HEAD
 use Illuminate\Support\Facades\DB;
-=======
->>>>>>> ddc347f4d98c1bde70cb3726989af3ead08b7d92
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 class RoleSeeder extends Seeder
 {
-<<<<<<< HEAD
     /**
-     * Seed the available system roles.
+     * Seed the RushPi system roles.
      */
     public function run(): void
     {
-        /*
-         * Clear Spatie's cached roles and permissions before
-         * creating or updating the roles.
-         */
         app(PermissionRegistrar::class)
             ->forgetCachedPermissions();
 
-        $roles = [
-            'admin',
-            'seller',
-            'dealer',
-            'commissioner',
-        ];
-
         DB::transaction(
-            function () use ($roles): void {
-                foreach ($roles as $roleName) {
+            function (): void {
+                foreach (User::ROLES as $roleName) {
                     Role::findOrCreate(
                         $roleName,
                         'web'
@@ -43,34 +31,7 @@ class RoleSeeder extends Seeder
             }
         );
 
-        /*
-         * Clear the cache again so the new roles become
-         * available immediately.
-         */
         app(PermissionRegistrar::class)
             ->forgetCachedPermissions();
-=======
-    public function run(): void
-    {
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
-
-        $roles = [
-            'superadmin',
-            'admin',
-            'customer',
-            'seller_owner',
-            'seller_staff',
-            'delivery_agent',
-        ];
-
-        foreach ($roles as $roleName) {
-            Role::firstOrCreate([
-                'name' => $roleName,
-                'guard_name' => 'web',
-            ]);
-        }
-
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
->>>>>>> ddc347f4d98c1bde70cb3726989af3ead08b7d92
     }
 }
