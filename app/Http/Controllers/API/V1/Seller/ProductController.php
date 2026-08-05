@@ -1136,7 +1136,7 @@ final class ProductController extends Controller
             'returnPolicy.updatedBy',
 
             'variants' => static function (
-                Builder $variantQuery
+                $variantQuery
             ): void {
                 $variantQuery
                     ->orderByDesc('is_default')
@@ -1149,7 +1149,7 @@ final class ProductController extends Controller
             'variants.inventoryStock',
 
             'variants.media' => static function (
-                Builder $mediaQuery
+                $mediaQuery
             ): void {
                 $mediaQuery
                     ->orderByDesc('is_primary')
@@ -1158,7 +1158,7 @@ final class ProductController extends Controller
             },
 
             'media' => static function (
-                Builder $mediaQuery
+                $mediaQuery
             ): void {
                 $mediaQuery
                     ->orderByDesc('is_primary')
@@ -1167,7 +1167,7 @@ final class ProductController extends Controller
             },
 
             'moderationReviews' => static function (
-                Builder $reviewQuery
+                $reviewQuery
             ): void {
                 $reviewQuery
                     ->orderByDesc('created_at')

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -14,7 +15,10 @@ class User extends Authenticatable
 {
     use HasApiTokens;
     use HasFactory;
+<<<<<<< HEAD
     use HasRoles;
+=======
+>>>>>>> ddc347f4d98c1bde70cb3726989af3ead08b7d92
     use Notifiable;
 
     /**
@@ -29,6 +33,7 @@ class User extends Authenticatable
     /**
      * Available RushPi user roles.
      */
+<<<<<<< HEAD
     public const ROLE_ADMIN = 'admin';
     public const ROLE_SELLER = 'seller';
     public const ROLE_DEALER = 'dealer';
@@ -59,13 +64,31 @@ class User extends Authenticatable
         self::ROLE_DEALER,
         self::ROLE_COMMISSIONER,
     ];
+=======
+    public const ROLE_ADMIN =
+        'admin';
+
+    public const ROLE_CUSTOMER =
+        'customer';
+>>>>>>> ddc347f4d98c1bde70cb3726989af3ead08b7d92
 
     /**
      * Available account statuses.
      */
-    public const STATUS_ACTIVE = 'active';
-    public const STATUS_INACTIVE = 'inactive';
-    public const STATUS_BLOCKED = 'blocked';
+    public const STATUS_ACTIVE =
+        'active';
+
+    public const STATUS_INACTIVE =
+        'inactive';
+
+    public const STATUS_BLOCKED =
+        'blocked';
+
+    /**
+     * Available seller membership statuses.
+     */
+    public const SELLER_MEMBER_ACTIVE =
+        'active';
 
     /**
      * All supported account statuses.
@@ -95,7 +118,7 @@ class User extends Authenticatable
     ];
 
     /**
-     * The attributes that should be hidden for serialization.
+     * The attributes hidden during serialization.
      *
      * @var array<int, string>
      */
@@ -112,12 +135,16 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'email_verified_at' =>
+                'datetime',
+
+            'password' =>
+                'hashed',
         ];
     }
 
     /**
+<<<<<<< HEAD
      * Get the user's effective role.
      *
      * Spatie roles are checked first. The users.role column is
@@ -167,9 +194,96 @@ class User extends Authenticatable
 
     /**
      * Check whether the user is a seller or shop owner.
+=======
+     * Seller businesses to which this user belongs.
+     */
+    public function sellerProfiles(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            SellerProfile::class,
+            'seller_members',
+            'user_id',
+            'seller_profile_id'
+        )->withPivot([
+            'id',
+            'role',
+            'status',
+            'joined_at',
+        ]);
+    }
+
+    /**
+     * Determine whether the user is an active member
+     * of the supplied seller business.
+     */
+    public function belongsToSeller(
+        SellerProfile $sellerProfile
+    ): bool {
+        if (
+            !$this->exists
+            || !$sellerProfile->exists
+        ) {
+            return false;
+        }
+
+        return $this
+            ->sellerProfiles()
+            ->whereKey(
+                $sellerProfile->getKey()
+            )
+            ->wherePivot(
+                'status',
+                self::SELLER_MEMBER_ACTIVE
+            )
+            ->exists();
+    }
+
+    /**
+     * Determine whether the user owns
+     * the supplied seller business.
+     */
+    public function ownsSeller(
+        SellerProfile $sellerProfile
+    ): bool {
+        if (
+            !$this->exists
+            || !$sellerProfile->exists
+        ) {
+            return false;
+        }
+
+        return $this
+            ->sellerProfiles()
+            ->whereKey(
+                $sellerProfile->getKey()
+            )
+            ->wherePivot(
+                'role',
+                'owner'
+            )
+            ->wherePivot(
+                'status',
+                self::SELLER_MEMBER_ACTIVE
+            )
+            ->exists();
+    }
+
+    /**
+     * Check whether the user is an administrator.
+     */
+    public function isAdmin(): bool
+    {
+        return $this->role ===
+            self::ROLE_ADMIN;
+    }
+
+    /**
+     * Check whether the user is a customer.
+>>>>>>> ddc347f4d98c1bde70cb3726989af3ead08b7d92
      */
     public function isSeller(): bool
     {
+<<<<<<< HEAD
         return $this->hasSystemRole(
             self::ROLE_SELLER
         );
@@ -208,6 +322,13 @@ class User extends Authenticatable
     }
 
     /**
+=======
+        return $this->role ===
+            self::ROLE_CUSTOMER;
+    }
+
+    /**
+>>>>>>> ddc347f4d98c1bde70cb3726989af3ead08b7d92
      * Check whether the account is active.
      */
     public function isActive(): bool
@@ -215,6 +336,7 @@ class User extends Authenticatable
         return $this->status ===
             self::STATUS_ACTIVE;
     }
+<<<<<<< HEAD
 
     /**
      * Check whether the account is inactive.
@@ -233,4 +355,6 @@ class User extends Authenticatable
         return $this->status ===
             self::STATUS_BLOCKED;
     }
+=======
+>>>>>>> ddc347f4d98c1bde70cb3726989af3ead08b7d92
 }

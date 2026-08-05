@@ -15,6 +15,7 @@ use App\Models\CategorySpecification;
 use App\Models\InventoryStock;
 use App\Models\Product;
 use App\Models\ProductMedia;
+use App\Models\ProductReturnPolicy;
 use App\Models\ProductVariant;
 use App\Models\ProductVariantPrice;
 use App\Models\SellerProfile;
@@ -41,9 +42,14 @@ final class SellerProductSubmissionTest extends TestCase
         [
             'seller' => $seller,
             'product' => $product,
+            'definition' => $definition,
         ] = $this->createBaseProduct(
             specifications: []
         );
+
+        $specificationKey =
+            'specifications.'
+            .(string) $definition->code;
 
         $variant = $this->createVariant($product);
 
@@ -57,13 +63,13 @@ final class SellerProductSubmissionTest extends TestCase
                     $seller,
                     $product
                 ),
-            expectedKey: 'specifications.ram'
+            expectedKey: $specificationKey
         );
 
         $this->assertStringContainsString(
             'required',
             strtolower(
-                $errors['specifications.ram'][0]
+                $errors[$specificationKey][0]
             )
         );
 
@@ -115,7 +121,11 @@ final class SellerProductSubmissionTest extends TestCase
         [
             'seller' => $seller,
             'product' => $product,
+            'definition' => $definition,
         ] = $this->createBaseProduct();
+
+        $specificationCode =
+            (string) $definition->code;
 
         $variant = $this->createVariant($product);
 
@@ -226,13 +236,18 @@ final class SellerProductSubmissionTest extends TestCase
         [
             'seller' => $seller,
             'product' => $product,
+            'definition' => $definition,
         ] = $this->createBaseProduct();
+
+        $specificationCode =
+            (string) $definition->code;
 
         $variant = $this->createVariant($product);
 
         $this->createPrice($variant);
         $this->createInventory($variant);
         $this->createMedia($product);
+        $this->createReturnPolicy($product);
 
         $response = $this->submitProduct(
             $seller,
@@ -275,7 +290,9 @@ final class SellerProductSubmissionTest extends TestCase
 
         $this->assertSame(
             16,
-            $product->specifications['ram']
+            $product->specifications[
+                $specificationCode
+            ]
         );
     }
 
@@ -705,6 +722,77 @@ final class SellerProductSubmissionTest extends TestCase
         );
 
         return $media;
+    }
+
+    /**
+     * Create a valid active return policy for submission readiness.
+     */
+    private function createReturnPolicy(
+        Product $product
+    ): ProductReturnPolicy {
+        /** @var ProductReturnPolicy $policy */
+        $policy = $this->persistModel(
+            new ProductReturnPolicy(),
+            [
+                'product_id' =>
+                    $product->getKey(),
+
+                'is_returnable' =>
+                    true,
+
+                'return_window_days' =>
+                    7,
+
+                'allow_refund' =>
+                    true,
+
+                'allow_exchange' =>
+                    true,
+
+                'requires_original_packaging' =>
+                    true,
+
+                'requires_proof_of_purchase' =>
+                    true,
+
+                'restocking_fee_percent' =>
+                    0,
+
+                'return_shipping_payer' =>
+                    ProductReturnPolicy
+                        ::SHIPPING_PAYER_CUSTOMER,
+
+                'accepted_conditions' => [
+                    ProductReturnPolicy
+                        ::CONDITION_UNUSED,
+
+                    ProductReturnPolicy
+                        ::CONDITION_DEFECTIVE,
+                ],
+
+                'refund_methods' => [
+                    ProductReturnPolicy
+                        ::REFUND_ORIGINAL_PAYMENT_METHOD,
+                ],
+
+                'instructions' =>
+                    'Return the product within seven days with proof of purchase.',
+
+                'non_returnable_reason' =>
+                    null,
+
+                'is_active' =>
+                    true,
+
+                'created_by' =>
+                    null,
+
+                'updated_by' =>
+                    null,
+            ]
+        );
+
+        return $policy;
     }
 
     /**

@@ -1,0 +1,128 @@
+services:
+  app: &laravel-app
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    image: rushpi-app:local
+    restart: unless-stopped
+    working_dir: /var/www/html
+    env_file:
+      - .env.docker
+    volumes:
+      - ./:/var/www/html
+      - rushpi_vendor:/var/www/html/vendor
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - rushpi_network
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${APP_PORT:-8085}:80"
+    volumes:
+      - ./:/var/www/html:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+    networks:
+      - rushpi_network
+
+  queue:
+    <<: *laravel-app
+    command:
+      - php
+      - artisan
+      - queue:work
+      - --verbose
+      - --sleep=3
+      - --tries=3
+      - --timeout=90
+
+  scheduler:
+    <<: *laravel-app
+    command:
+      - php
+      - artisan
+      - schedule:work
+
+  mysql:
+    image: mysql:8.0.46-debian
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - rushpi_mysql:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h 127.0.0.1 -u$${MYSQL_USER} -p$${MYSQL_PASSWORD} --silent"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+    networks:
+      - rushpi_network
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+    volumes:
+      - rushpi_redis:/data
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    networks:
+      - rushpi_network
+
+  opensearch:
+    image: opensearchproject/opensearch:3
+    restart: unless-stopped
+    profiles:
+      - search
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      - DISABLE_SECURITY_PLUGIN=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+    volumes:
+      - rushpi_opensearch:/usr/share/opensearch/data
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    networks:
+      - rushpi_network
+
+networks:
+  rushpi_network:
+    driver: bridge
+
+volumes:
+  rushpi_mysql:
+  rushpi_redis:
+  rushpi_vendor:
+  rushpi_opensearch:

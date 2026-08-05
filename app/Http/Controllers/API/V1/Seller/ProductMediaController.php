@@ -50,6 +50,11 @@ final class ProductMediaController extends Controller
     private const MAX_PIXEL_COUNT = 80_000_000;
 
     /**
+     * A processing attempt is considered stale after this period.
+     */
+    private const STALE_PROCESSING_MINUTES = 15;
+
+    /**
      * Supported secure raster-image MIME types.
      *
      * SVG is intentionally excluded because it may contain scripts and other
@@ -756,6 +761,171 @@ final class ProductMediaController extends Controller
                 )
             )->resolve($request),
         ]);
+    }
+
+    /**
+     * Queue a failed, pending, incomplete or stale media-processing attempt.
+     */
+    public function retryProcessing(
+        Request $request,
+        SellerProfile $sellerProfile,
+        Product $product,
+        ProductMedia $media
+    ): JsonResponse {
+        $this->ensureProductBelongsToSeller(
+            $sellerProfile,
+            $product
+        );
+
+        $this->ensureMediaBelongsToProduct(
+            $product,
+            $media
+        );
+
+        $this->ensureProductCanBeEdited(
+            $product
+        );
+
+        $queuedMedia = DB::transaction(
+            function () use (
+                $product,
+                $media
+            ): ProductMedia {
+                $lockedProduct = Product::query()
+                    ->whereKey(
+                        $product->getKey()
+                    )
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                $this->ensureProductCanBeEdited(
+                    $lockedProduct
+                );
+
+                $lockedMedia = ProductMedia::query()
+                    ->whereKey(
+                        $media->getKey()
+                    )
+                    ->where(
+                        'product_id',
+                        $lockedProduct->getKey()
+                    )
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if (
+                    !$lockedMedia
+                        ->supportsImageProcessing()
+                ) {
+                    throw new HttpResponseException(
+                        response()->json([
+                            'success' => false,
+
+                            'message' =>
+                                'This product media cannot be processed.',
+
+                            'errors' => [
+                                'media' => [
+                                    'The selected media is not a supported processable image.',
+                                ],
+                            ],
+                        ], 409)
+                    );
+                }
+
+                /*
+                 * Successfully completed media must not be processed again.
+                 *
+                 * A record marked completed but missing its required optimized
+                 * rendition is treated as incomplete and may be recovered.
+                 */
+                if (
+                    $lockedMedia->isCompleted()
+                    && $lockedMedia
+                        ->hasOptimizedRendition()
+                ) {
+                    throw new HttpResponseException(
+                        response()->json([
+                            'success' => false,
+
+                            'message' =>
+                                'Product media processing has already completed.',
+
+                            'errors' => [
+                                'processing_status' => [
+                                    'Successfully processed media cannot be retried.',
+                                ],
+                            ],
+                        ], 409)
+                    );
+                }
+
+                /*
+                 * Do not queue another job while a worker is actively
+                 * processing this media. Older attempts are considered stale
+                 * and may safely be queued again.
+                 */
+                if (
+                    $lockedMedia->isProcessing()
+                    && $lockedMedia
+                        ->processing_started_at
+                        !== null
+                    && $lockedMedia
+                        ->processing_started_at
+                        ->greaterThan(
+                            now()->subMinutes(
+                                self::
+                                    STALE_PROCESSING_MINUTES
+                            )
+                        )
+                ) {
+                    throw new HttpResponseException(
+                        response()->json([
+                            'success' => false,
+
+                            'message' =>
+                                'Product media processing is already in progress.',
+
+                            'errors' => [
+                                'processing_status' => [
+                                    'A recent processing attempt is still active.',
+                                ],
+                            ],
+                        ], 409)
+                    );
+                }
+
+                /*
+                 * markPending() clears processing errors and processing
+                 * timestamps while preserving the original uploaded file.
+                 */
+                $lockedMedia->markPending();
+
+                return $lockedMedia->refresh();
+            },
+            3
+        );
+
+        ProcessProductMedia::dispatch(
+            $queuedMedia->getKey()
+        )->onQueue('media');
+
+        $queuedMedia->load([
+            'variant:id,public_id,product_id,name,sku',
+        ]);
+
+        return response()->json([
+            'success' => true,
+
+            'message' =>
+                'Product media processing has been queued successfully.',
+
+            'data' => (
+                new SellerProductMediaResource(
+                    $queuedMedia
+                )
+            )->resolve($request),
+        ], 202);
     }
 
     /**

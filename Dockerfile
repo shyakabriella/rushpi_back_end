@@ -1,34 +1,41 @@
-FROM php:8.3-fpm-bookworm
+FROM php:8.3-fpm-alpine
 
-# Install Linux packages and PHP build dependencies
-RUN apt-get update && apt-get install -y \
-    git \
+ARG UID=1000
+ARG GID=1000
+
+RUN apk add --no-cache \
+    bash \
     curl \
+    git \
     unzip \
-    libpq-dev \
-    libicu-dev \
+    postgresql-dev \
     libzip-dev \
-    libonig-dev \
-    && docker-php-ext-install \
-        bcmath \
-        intl \
-        mbstring \
-        opcache \
-        pcntl \
-        pdo_pgsql \
-        sockets \
-        zip \
-    && pecl install redis \
-    && docker-php-ext-enable redis \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    icu-dev \
+    oniguruma-dev \
+    linux-headers \
+    $PHPIZE_DEPS
 
-# Install Composer
+RUN docker-php-ext-install \
+    bcmath \
+    intl \
+    mbstring \
+    opcache \
+    pcntl \
+    pdo_pgsql \
+    zip
+
+RUN pecl install redis \
+    && docker-php-ext-enable redis
+
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+RUN addgroup -g ${GID} appgroup \
+    && adduser -D -u ${UID} -G appgroup appuser
 
 WORKDIR /var/www/html
 
-# Custom PHP settings
-COPY docker/php/php.ini /usr/local/etc/php/conf.d/marketplace.ini
+COPY docker/php/php.ini /usr/local/etc/php/conf.d/custom.ini
+
+USER appuser
 
 CMD ["php-fpm"]

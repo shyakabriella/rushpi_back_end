@@ -6,653 +6,497 @@ namespace App\OpenApi;
 
 use OpenApi\Attributes as OA;
 
-#[OA\Info(
-    version: '1.0.0',
-    title: 'RushPi Marketplace API',
-    description: 'Backend API contract for the RushPi verified electronics marketplace.',
-    contact: new OA\Contact(
-        name: 'RushPi Backend Team'
-    )
-)]
-#[OA\Server(
-    url: '/api',
-    description: 'RushPi production API'
-)]
-#[OA\SecurityScheme(
-    securityScheme: 'sanctum',
-    type: 'http',
-    scheme: 'bearer',
-    bearerFormat: 'Bearer token',
-    description: 'Enter only the Sanctum token. Swagger automatically adds the Bearer prefix.'
-)]
-#[OA\Tag(
-    name: 'System',
-    description: 'Application health and infrastructure readiness endpoints.'
-)]
-#[OA\Tag(
-    name: 'Authentication',
-    description: 'Customer registration, login, logout and authenticated-user endpoints.'
-)]
-#[OA\Tag(
-    name: 'Seller Profiles',
-    description: 'Seller business profile creation and management endpoints.'
-)]
-#[OA\Tag(
-    name: 'Seller Verification Admin',
-    description: 'Administrator endpoints for reviewing and deciding seller verification applications.'
-)]
-#[OA\Schema(
-    schema: 'User',
-    title: 'User',
-    type: 'object',
-    required: [
-        'id',
-        'name',
-        'email',
-        'role',
-        'status',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'id',
-            description: 'Internal user ID.',
-            type: 'integer',
-            format: 'int64',
-            example: 1
-        ),
-        new OA\Property(
-            property: 'name',
-            description: 'User full name.',
-            type: 'string',
-            maxLength: 255,
-            example: 'Guillaume Karangwa'
-        ),
-        new OA\Property(
-            property: 'email',
-            description: 'User email address.',
-            type: 'string',
-            format: 'email',
-            maxLength: 255,
-            example: 'guillaume@example.com'
-        ),
-        new OA\Property(
-            property: 'phone',
-            description: 'User telephone number.',
-            type: 'string',
-            maxLength: 30,
-            nullable: true,
-            example: '+250788000000'
-        ),
-        new OA\Property(
-            property: 'role',
-            description: 'User system role.',
-            type: 'string',
-            enum: [
-                'superadmin',
-                'admin',
-                'customer',
-                'seller_owner',
-                'seller_staff',
-                'delivery_agent',
-            ],
-            example: 'customer'
-        ),
-        new OA\Property(
-            property: 'status',
-            description: 'Current account status.',
-            type: 'string',
-            enum: [
-                'active',
-                'inactive',
-                'blocked',
-            ],
-            example: 'active'
-        ),
-        new OA\Property(
-            property: 'address',
-            description: 'User address.',
-            type: 'string',
-            maxLength: 1000,
-            nullable: true,
-            example: 'Kigali, Rwanda'
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'AuthData',
-    title: 'Authentication data',
-    type: 'object',
-    required: [
-        'token',
-        'user',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'token',
-            description: 'Laravel Sanctum access token.',
-            type: 'string',
-            example: '1|long-sanctum-access-token'
-        ),
-        new OA\Property(
-            property: 'user',
-            ref: '#/components/schemas/User'
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'AuthSuccessResponse',
-    title: 'Authentication success response',
-    type: 'object',
-    required: [
-        'success',
-        'data',
-        'message',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'success',
-            type: 'boolean',
-            example: true
-        ),
-        new OA\Property(
-            property: 'data',
-            ref: '#/components/schemas/AuthData'
-        ),
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'User logged in successfully.'
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'UserProfileResponse',
-    title: 'Authenticated user response',
-    type: 'object',
-    required: [
-        'success',
-        'data',
-        'message',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'success',
-            type: 'boolean',
-            example: true
-        ),
-        new OA\Property(
-            property: 'data',
-            type: 'object',
-            required: [
-                'user',
-            ],
-            properties: [
-                new OA\Property(
-                    property: 'user',
-                    ref: '#/components/schemas/User'
-                ),
-            ]
-        ),
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'User profile fetched successfully.'
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'SellerProfile',
-    title: 'Seller profile',
-    type: 'object',
-    required: [
-        'public_id',
-        'status',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'id',
-            description: 'Internal seller profile ID.',
-            type: 'integer',
-            format: 'int64',
-            example: 1
-        ),
-        new OA\Property(
-            property: 'public_id',
-            description: 'Public seller profile identifier used in API routes.',
-            type: 'string',
-            example: '01JZ8T5M8P7BZW2K4X9D6QYH3A'
-        ),
-        new OA\Property(
-            property: 'legal_business_name',
-            description: 'Registered legal business name.',
-            type: 'string',
-            example: 'RushPi Electronics Limited'
-        ),
-        new OA\Property(
-            property: 'trading_name',
-            description: 'Business trading name.',
-            type: 'string',
-            nullable: true,
-            example: 'RushPi Electronics'
-        ),
-        new OA\Property(
-            property: 'registration_number',
-            description: 'Official business registration number.',
-            type: 'string',
-            nullable: true,
-            example: 'RC123456789'
-        ),
-        new OA\Property(
-            property: 'tax_identification_number',
-            description: 'Business tax identification number.',
-            type: 'string',
-            nullable: true,
-            example: 'TIN987654321'
-        ),
-        new OA\Property(
-            property: 'business_email',
-            description: 'Business email address.',
-            type: 'string',
-            format: 'email',
-            nullable: true,
-            example: 'seller@example.com'
-        ),
-        new OA\Property(
-            property: 'business_phone',
-            description: 'Business telephone number.',
-            type: 'string',
-            nullable: true,
-            example: '+250788000000'
-        ),
-        new OA\Property(
-            property: 'status',
-            description: 'Current seller profile status.',
-            type: 'string',
-            enum: [
-                'draft',
-                'pending_verification',
-                'approved',
-                'rejected',
-                'suspended',
-            ],
-            example: 'draft'
-        ),
-        new OA\Property(
-            property: 'approved_at',
-            description: 'Date and time when the seller was approved.',
-            type: 'string',
-            format: 'date-time',
-            nullable: true,
-            example: '2026-08-01T10:30:00.000000Z'
-        ),
-        new OA\Property(
-            property: 'suspended_at',
-            description: 'Date and time when the seller was suspended.',
-            type: 'string',
-            format: 'date-time',
-            nullable: true,
-            example: null
-        ),
-        new OA\Property(
-            property: 'suspension_reason',
-            description: 'Reason the seller was suspended.',
-            type: 'string',
-            nullable: true,
-            example: null
-        ),
-        new OA\Property(
-            property: 'addresses',
-            description: 'Seller business addresses.',
-            type: 'array',
-            items: new OA\Items(
-                type: 'object'
-            )
-        ),
-        new OA\Property(
-            property: 'members',
-            description: 'Users belonging to the seller business.',
-            type: 'array',
-            items: new OA\Items(
-                type: 'object'
-            )
-        ),
-        new OA\Property(
-            property: 'applications',
-            description: 'Seller verification applications.',
-            type: 'array',
-            items: new OA\Items(
-                ref: '#/components/schemas/SellerApplication'
-            )
-        ),
-        new OA\Property(
-            property: 'created_at',
-            type: 'string',
-            format: 'date-time',
-            example: '2026-08-01T00:00:00.000000Z'
-        ),
-        new OA\Property(
-            property: 'updated_at',
-            type: 'string',
-            format: 'date-time',
-            example: '2026-08-01T00:00:00.000000Z'
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'SellerApplication',
-    title: 'Seller verification application',
-    type: 'object',
-    properties: [
-        new OA\Property(
-            property: 'id',
-            description: 'Internal application ID.',
-            type: 'integer',
-            format: 'int64',
-            example: 1
-        ),
-        new OA\Property(
-            property: 'public_id',
-            description: 'Public application identifier used in API routes.',
-            type: 'string',
-            example: '01JZ8V6QP4EJ9XH7M3B2NK8W5C'
-        ),
-        new OA\Property(
-            property: 'version',
-            description: 'Application version.',
-            type: 'integer',
-            minimum: 1,
-            example: 1
-        ),
-        new OA\Property(
-            property: 'status',
-            description: 'Current verification application status.',
-            type: 'string',
-            enum: [
-                'draft',
-                'submitted',
-                'under_review',
-                'more_information_required',
-                'approved',
-                'rejected',
-                'suspended',
-            ],
-            example: 'submitted'
-        ),
-        new OA\Property(
-            property: 'information_request',
-            description: 'Information requested from the seller.',
-            type: 'string',
-            nullable: true,
-            example: null
-        ),
-        new OA\Property(
-            property: 'rejection_reason',
-            description: 'Reason the application was rejected.',
-            type: 'string',
-            nullable: true,
-            example: null
-        ),
-        new OA\Property(
-            property: 'submitted_at',
-            type: 'string',
-            format: 'date-time',
-            nullable: true,
-            example: '2026-08-01T08:00:00.000000Z'
-        ),
-        new OA\Property(
-            property: 'review_started_at',
-            type: 'string',
-            format: 'date-time',
-            nullable: true,
-            example: null
-        ),
-        new OA\Property(
-            property: 'decided_at',
-            type: 'string',
-            format: 'date-time',
-            nullable: true,
-            example: null
-        ),
-        new OA\Property(
-            property: 'documents_count',
-            description: 'Number of submitted verification documents.',
-            type: 'integer',
-            minimum: 0,
-            example: 2
-        ),
-        new OA\Property(
-            property: 'seller_profile',
-            ref: '#/components/schemas/SellerProfile'
-        ),
-        new OA\Property(
-            property: 'documents',
-            type: 'array',
-            items: new OA\Items(
-                ref: '#/components/schemas/SellerDocument'
-            )
-        ),
-        new OA\Property(
-            property: 'created_at',
-            type: 'string',
-            format: 'date-time',
-            example: '2026-08-01T00:00:00.000000Z'
-        ),
-        new OA\Property(
-            property: 'updated_at',
-            type: 'string',
-            format: 'date-time',
-            example: '2026-08-01T00:00:00.000000Z'
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'SellerDocument',
-    title: 'Seller verification document',
-    type: 'object',
-    properties: [
-        new OA\Property(
-            property: 'id',
-            description: 'Internal document ID.',
-            type: 'integer',
-            format: 'int64',
-            example: 1
-        ),
-        new OA\Property(
-            property: 'public_id',
-            description: 'Public document identifier used in API routes.',
-            type: 'string',
-            example: '01JZ8W7KQ9B5C4D8F2M6P1R3XT'
-        ),
-        new OA\Property(
-            property: 'document_type',
-            description: 'Verification document type.',
-            type: 'string',
-            example: 'business_registration_certificate'
-        ),
-        new OA\Property(
-            property: 'original_name',
-            description: 'Original uploaded filename.',
-            type: 'string',
-            example: 'business-registration.pdf'
-        ),
-        new OA\Property(
-            property: 'mime_type',
-            description: 'Uploaded file MIME type.',
-            type: 'string',
-            example: 'application/pdf'
-        ),
-        new OA\Property(
-            property: 'status',
-            description: 'Current document verification status.',
-            type: 'string',
-            enum: [
-                'pending_scan',
-                'clean',
-                'infected',
-                'approved',
-                'rejected',
-            ],
-            example: 'clean'
-        ),
-        new OA\Property(
-            property: 'expires_at',
-            description: 'Document expiry date.',
-            type: 'string',
-            format: 'date-time',
-            nullable: true,
-            example: null
-        ),
-        new OA\Property(
-            property: 'reviewed_at',
-            description: 'Date and time the document was reviewed.',
-            type: 'string',
-            format: 'date-time',
-            nullable: true,
-            example: null
-        ),
-        new OA\Property(
-            property: 'rejection_reason',
-            description: 'Reason the document was rejected.',
-            type: 'string',
-            nullable: true,
-            example: null
-        ),
-        new OA\Property(
-            property: 'created_at',
-            type: 'string',
-            format: 'date-time',
-            example: '2026-08-01T00:00:00.000000Z'
-        ),
-        new OA\Property(
-            property: 'updated_at',
-            type: 'string',
-            format: 'date-time',
-            example: '2026-08-01T00:00:00.000000Z'
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'SuccessResponse',
-    title: 'Generic success response',
-    type: 'object',
-    required: [
-        'success',
-        'message',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'success',
-            type: 'boolean',
-            example: true
-        ),
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'Operation completed successfully.'
-        ),
-        new OA\Property(
-            property: 'data',
-            type: 'object',
-            nullable: true
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'ValidationErrorResponse',
-    title: 'Validation error response',
-    type: 'object',
-    required: [
-        'success',
-        'message',
-        'errors',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'success',
-            type: 'boolean',
-            example: false
-        ),
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'Validation Error.'
-        ),
-        new OA\Property(
-            property: 'errors',
-            type: 'object',
-            example: [
-                'email' => [
-                    'The email field is required.',
-                ],
-            ]
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'UnauthenticatedResponse',
-    title: 'Unauthenticated response',
-    type: 'object',
-    required: [
-        'message',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'Unauthenticated.'
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'ForbiddenResponse',
-    title: 'Forbidden response',
-    type: 'object',
-    properties: [
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'Only administrators can manage seller verification.'
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'NotFoundResponse',
-    title: 'Not found response',
-    type: 'object',
-    properties: [
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'The requested resource was not found.'
-        ),
-    ]
-)]
-#[OA\Schema(
-    schema: 'SellerErrorResponse',
-    title: 'Seller operation error response',
-    type: 'object',
-    required: [
-        'success',
-        'message',
-    ],
-    properties: [
-        new OA\Property(
-            property: 'success',
-            type: 'boolean',
-            example: false
-        ),
-        new OA\Property(
-            property: 'message',
-            type: 'string',
-            example: 'You are not allowed to perform this action.'
-        ),
-        new OA\Property(
-            property: 'data',
-            nullable: true,
-            example: null
-        ),
-    ]
-)]
-final class OpenApiSpec
+final class ApiEndpoints
 {
+    #[OA\Post(
+        path: '/register',
+        operationId: 'registerCustomer',
+        summary: 'Register a customer account',
+        description: 'Creates an active customer account and returns a Laravel Sanctum token.',
+        tags: ['Authentication'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: [
+                    'name',
+                    'email',
+                    'password',
+                    'c_password',
+                ],
+                properties: [
+                    new OA\Property(
+                        property: 'name',
+                        type: 'string',
+                        maxLength: 255,
+                        example: 'Guillaume Karangwa'
+                    ),
+                    new OA\Property(
+                        property: 'email',
+                        type: 'string',
+                        format: 'email',
+                        maxLength: 255,
+                        example: 'guillaume@example.com'
+                    ),
+                    new OA\Property(
+                        property: 'phone',
+                        type: 'string',
+                        maxLength: 30,
+                        nullable: true,
+                        example: '+250788000000'
+                    ),
+                    new OA\Property(
+                        property: 'password',
+                        type: 'string',
+                        format: 'password',
+                        minLength: 6,
+                        example: 'StrongPassword123!'
+                    ),
+                    new OA\Property(
+                        property: 'c_password',
+                        type: 'string',
+                        format: 'password',
+                        example: 'StrongPassword123!'
+                    ),
+                    new OA\Property(
+                        property: 'address',
+                        type: 'string',
+                        maxLength: 1000,
+                        nullable: true,
+                        example: 'Kigali, Rwanda'
+                    ),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Customer registered successfully.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/AuthSuccessResponse'
+                )
+            ),
+            new OA\Response(
+                response: 422,
+                description: 'Validation failed.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ValidationErrorResponse'
+                )
+            ),
+        ]
+    )]
+    public function register(): void
+    {
+    }
+
+    #[OA\Post(
+        path: '/login',
+        operationId: 'loginUser',
+        summary: 'Log in to RushPi',
+        description: 'Authenticates a user and returns a Laravel Sanctum token.',
+        tags: ['Authentication'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: [
+                    'email',
+                    'password',
+                ],
+                properties: [
+                    new OA\Property(
+                        property: 'email',
+                        type: 'string',
+                        format: 'email',
+                        example: 'guillaume@example.com'
+                    ),
+                    new OA\Property(
+                        property: 'password',
+                        type: 'string',
+                        format: 'password',
+                        example: 'StrongPassword123!'
+                    ),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'User logged in successfully.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/AuthSuccessResponse'
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Invalid credentials or inactive account.'
+            ),
+            new OA\Response(
+                response: 422,
+                description: 'Validation failed.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ValidationErrorResponse'
+                )
+            ),
+        ]
+    )]
+    public function login(): void
+    {
+    }
+
+    #[OA\Get(
+        path: '/me',
+        operationId: 'getAuthenticatedUser',
+        summary: 'Get the authenticated user',
+        tags: ['Authentication'],
+        security: [
+            ['sanctum' => []],
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Authenticated user retrieved successfully.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/UserProfileResponse'
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthenticated.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/UnauthenticatedResponse'
+                )
+            ),
+        ]
+    )]
+    public function me(): void
+    {
+    }
+
+    #[OA\Post(
+        path: '/logout',
+        operationId: 'logoutUser',
+        summary: 'Log out the authenticated user',
+        description: 'Deletes the Laravel Sanctum token used by the current request.',
+        tags: ['Authentication'],
+        security: [
+            ['sanctum' => []],
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'User logged out successfully.',
+                content: new OA\JsonContent(
+                    type: 'object',
+                    example: [
+                        'success' => true,
+                        'data' => [],
+                        'message' => 'User logged out successfully.',
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthenticated.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/UnauthenticatedResponse'
+                )
+            ),
+        ]
+    )]
+    public function logout(): void
+    {
+    }
+
+    #[OA\Get(
+        path: '/seller/profiles',
+        operationId: 'listSellerProfiles',
+        summary: 'List the authenticated user’s seller profiles',
+        tags: ['Seller Profiles'],
+        security: [
+            ['sanctum' => []],
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Seller profiles retrieved successfully.',
+                content: new OA\JsonContent(
+                    type: 'object',
+                    properties: [
+                        new OA\Property(
+                            property: 'success',
+                            type: 'boolean',
+                            example: true
+                        ),
+                        new OA\Property(
+                            property: 'message',
+                            type: 'string',
+                            example: 'Seller profiles retrieved successfully.'
+                        ),
+                        new OA\Property(
+                            property: 'data',
+                            type: 'array',
+                            items: new OA\Items(
+                                ref: '#/components/schemas/SellerProfile'
+                            )
+                        ),
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthenticated.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/UnauthenticatedResponse'
+                )
+            ),
+        ]
+    )]
+    public function listSellerProfiles(): void
+    {
+    }
+
+    #[OA\Post(
+        path: '/seller/profiles',
+        operationId: 'createSellerProfile',
+        summary: 'Create a seller business profile',
+        description: 'Creates a draft seller profile and assigns the authenticated user as its owner.',
+        tags: ['Seller Profiles'],
+        security: [
+            ['sanctum' => []],
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                type: 'object',
+                example: [
+                    'legal_business_name' => 'RushPi Electronics Limited',
+                    'trading_name' => 'RushPi Electronics',
+                    'registration_number' => 'RC123456789',
+                    'tax_identification_number' => 'TIN987654321',
+                    'business_email' => 'seller@example.com',
+                    'business_phone' => '+250788000000',
+                    'address' => [
+                        'country' => 'Rwanda',
+                        'city' => 'Kigali',
+                        'address_line_1' => 'KG 7 Avenue',
+                    ],
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(
+                response: 201,
+                description: 'Seller profile created successfully.',
+                content: new OA\JsonContent(
+                    type: 'object',
+                    properties: [
+                        new OA\Property(
+                            property: 'success',
+                            type: 'boolean',
+                            example: true
+                        ),
+                        new OA\Property(
+                            property: 'message',
+                            type: 'string',
+                            example: 'Seller business profile created successfully.'
+                        ),
+                        new OA\Property(
+                            property: 'data',
+                            ref: '#/components/schemas/SellerProfile'
+                        ),
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthenticated.'
+            ),
+            new OA\Response(
+                response: 422,
+                description: 'Validation failed.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/ValidationErrorResponse'
+                )
+            ),
+            new OA\Response(
+                response: 500,
+                description: 'Seller profile could not be created.',
+                content: new OA\JsonContent(
+                    ref: '#/components/schemas/SellerErrorResponse'
+                )
+            ),
+        ]
+    )]
+    public function createSellerProfile(): void
+    {
+    }
+
+    #[OA\Get(
+        path: '/seller/profiles/{sellerProfile}',
+        operationId: 'showSellerProfile',
+        summary: 'Get one seller profile',
+        tags: ['Seller Profiles'],
+        security: [
+            ['sanctum' => []],
+        ],
+        parameters: [
+            new OA\Parameter(
+                name: 'sellerProfile',
+                description: 'Seller profile public_id.',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'string'),
+                example: '01JZ8T5M8P7BZW2K4X9D6QYH3A'
+            ),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Seller profile retrieved successfully.',
+                content: new OA\JsonContent(
+                    type: 'object',
+                    properties: [
+                        new OA\Property(
+                            property: 'success',
+                            type: 'boolean',
+                            example: true
+                        ),
+                        new OA\Property(
+                            property: 'message',
+                            type: 'string',
+                            example: 'Seller profile retrieved successfully.'
+                        ),
+                        new OA\Property(
+                            property: 'data',
+                            ref: '#/components/schemas/SellerProfile'
+                        ),
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthenticated.'
+            ),
+            new OA\Response(
+                response: 403,
+                description: 'The user does not belong to this seller.'
+            ),
+            new OA\Response(
+                response: 404,
+                description: 'Seller profile not found.'
+            ),
+        ]
+    )]
+    public function showSellerProfile(): void
+    {
+    }
+
+    #[OA\Put(
+        path: '/seller/profiles/{sellerProfile}',
+        operationId: 'updateSellerProfileWithPut',
+        summary: 'Update a seller profile using PUT',
+        tags: ['Seller Profiles'],
+        security: [
+            ['sanctum' => []],
+        ],
+        parameters: [
+            new OA\Parameter(
+                name: 'sellerProfile',
+                description: 'Seller profile public_id.',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'string'),
+                example: '01JZ8T5M8P7BZW2K4X9D6QYH3A'
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                type: 'object',
+                example: [
+                    'trading_name' => 'RushPi Technology',
+                    'business_email' => 'contact@example.com',
+                    'business_phone' => '+250788111111',
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Seller profile updated successfully.'
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthenticated.'
+            ),
+            new OA\Response(
+                response: 403,
+                description: 'Only the seller owner may update the profile.'
+            ),
+            new OA\Response(
+                response: 404,
+                description: 'Seller profile not found.'
+            ),
+            new OA\Response(
+                response: 422,
+                description: 'Validation failed or profile status prevents updating.'
+            ),
+        ]
+    )]
+    public function updateSellerProfileWithPut(): void
+    {
+    }
+
+    #[OA\Patch(
+        path: '/seller/profiles/{sellerProfile}',
+        operationId: 'updateSellerProfileWithPatch',
+        summary: 'Partially update a seller profile',
+        tags: ['Seller Profiles'],
+        security: [
+            ['sanctum' => []],
+        ],
+        parameters: [
+            new OA\Parameter(
+                name: 'sellerProfile',
+                description: 'Seller profile public_id.',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'string'),
+                example: '01JZ8T5M8P7BZW2K4X9D6QYH3A'
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                type: 'object',
+                example: [
+                    'business_phone' => '+250788222222',
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Seller profile updated successfully.'
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthenticated.'
+            ),
+            new OA\Response(
+                response: 403,
+                description: 'Only the seller owner may update the profile.'
+            ),
+            new OA\Response(
+                response: 404,
+                description: 'Seller profile not found.'
+            ),
+            new OA\Response(
+                response: 422,
+                description: 'Validation failed or profile status prevents updating.'
+            ),
+        ]
+    )]
+    public function updateSellerProfileWithPatch(): void
+    {
+    }
 }

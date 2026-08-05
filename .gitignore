@@ -25,6 +25,10 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+<<<<<<< HEAD
+=======
+.env.docker
+>>>>>>> ddc347f4d98c1bde70cb3726989af3ead08b7d92
 *.backup
 *.backup-*
 *.backup.*

@@ -77,7 +77,7 @@ use OpenApi\Attributes as OA;
 */
 
 #[OA\Schema(
-    schema: 'ModerateProductRequest',
+    schema: 'StructuredModerateProductRequest',
     title: 'Moderate product request',
     description: 'Administrator decision for an electronics marketplace product. Approval cannot contain flags. Rejection, suspension and return-to-draft actions require a reason. Selected flags require flag notes. Prohibited flags require rejection or suspension.',
     type: 'object',
