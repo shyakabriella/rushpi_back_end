@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\API\RegisterController;
+use App\Models\User;
 use App\Http\Controllers\API\V1\Admin\BrandController;
 use App\Http\Controllers\API\V1\Admin\CategoryController;
 use App\Http\Controllers\API\V1\Admin\CategorySpecificationController;
@@ -20,6 +21,7 @@ use App\Http\Controllers\API\V1\Seller\SellerDocumentController;
 use App\Http\Controllers\API\V1\Seller\SellerProfileController;
 use App\Http\Controllers\API\V1\System\HealthController;
 use Illuminate\Support\Facades\Route;
+use Spatie\Permission\Middleware\RoleMiddleware;
 
 /*
 |--------------------------------------------------------------------------
@@ -69,7 +71,7 @@ Route::controller(RegisterController::class)
 
 /*
 |--------------------------------------------------------------------------
-| Public customer catalog
+| Public marketplace catalog
 |--------------------------------------------------------------------------
 |
 | These endpoints require no login.
@@ -158,6 +160,11 @@ Route::middleware('auth:sanctum')
         */
 
         Route::prefix('seller')
+            ->middleware(
+                RoleMiddleware::class
+                .':'
+                .User::ROLE_SELLER
+            )
             ->name('api.seller.')
             ->group(function (): void {
                 /*
@@ -584,12 +591,17 @@ Route::middleware('auth:sanctum')
         | Administrator routes
         |--------------------------------------------------------------------------
         |
-        | The administrator controllers, policies or middleware must verify
-        | that the authenticated account has administrator permissions.
+        | These endpoints require an authenticated account with the
+        | administrator role. Administrators manage all RushPi activities.
         |
         */
 
         Route::prefix('admin')
+            ->middleware(
+                RoleMiddleware::class
+                .':'
+                .User::ROLE_ADMIN
+            )
             ->name('api.admin.')
             ->group(function (): void {
                 /*

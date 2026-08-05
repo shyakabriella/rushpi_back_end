@@ -4,45 +4,46 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 class RoleSeeder extends Seeder
 {
     /**
-     * Run the database seeds.
+     * Seed the available system roles.
      */
     public function run(): void
     {
-        // Clear the Spatie permission cache.
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        /*
+         * Clear Spatie's cached roles and permissions before
+         * creating or updating the roles.
+         */
+        app(PermissionRegistrar::class)
+            ->forgetCachedPermissions();
 
         $roles = [
-            [
-                'name' => 'admin',
-                'guard_name' => 'web',
-            ],
-            [
-                'name' => 'customer',
-                'guard_name' => 'web',
-            ],
+            'admin',
+            'seller',
+            'dealer',
+            'commissioner',
         ];
 
-        foreach ($roles as $role) {
-            DB::table('roles')->updateOrInsert(
-                [
-                    'name' => $role['name'],
-                    'guard_name' => $role['guard_name'],
-                ],
-                [
-                    'name' => $role['name'],
-                    'guard_name' => $role['guard_name'],
-                    'updated_at' => now(),
-                    'created_at' => now(),
-                ]
-            );
-        }
+        DB::transaction(
+            function () use ($roles): void {
+                foreach ($roles as $roleName) {
+                    Role::findOrCreate(
+                        $roleName,
+                        'web'
+                    );
+                }
+            }
+        );
 
-        // Clear the cache again after inserting roles.
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        /*
+         * Clear the cache again so the new roles become
+         * available immediately.
+         */
+        app(PermissionRegistrar::class)
+            ->forgetCachedPermissions();
     }
 }
