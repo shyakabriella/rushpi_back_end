@@ -25,6 +25,18 @@ final class DatabaseSeeder extends Seeder
 
             /*
             |--------------------------------------------------------------------------
+            | Seller verification
+            |--------------------------------------------------------------------------
+            |
+            | Defines the verification documents that sellers may upload,
+            | including required, conditional, and recommended documents.
+            |
+            */
+
+            SellerDocumentRequirementSeeder::class,
+
+            /*
+            |--------------------------------------------------------------------------
             | Product specification catalog
             |--------------------------------------------------------------------------
             |
