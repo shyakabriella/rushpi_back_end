@@ -8,10 +8,6 @@ use Illuminate\Foundation\Http\FormRequest;
 
 final class UpdateSellerProfileRequest extends FormRequest
 {
-    /**
-     * Ownership / seller authorization is enforced
-     * by SellerProfileController::update().
-     */
     public function authorize(): bool
     {
         return true;
@@ -25,7 +21,7 @@ final class UpdateSellerProfileRequest extends FormRequest
         return [
             /*
             |--------------------------------------------------------------------------
-            | Store identity
+            | Business identity
             |--------------------------------------------------------------------------
             */
 
@@ -141,7 +137,7 @@ final class UpdateSellerProfileRequest extends FormRequest
 
             /*
             |--------------------------------------------------------------------------
-            | Policies
+            | Customer policies
             |--------------------------------------------------------------------------
             */
 
@@ -163,15 +159,6 @@ final class UpdateSellerProfileRequest extends FormRequest
             |--------------------------------------------------------------------------
             | Business address
             |--------------------------------------------------------------------------
-            |
-            | The frontend sends:
-            |
-            | address[country]
-            | address[province]
-            | address[district]
-            | address[sector]
-            | address[address_line]
-            |
             */
 
             'address' => [
