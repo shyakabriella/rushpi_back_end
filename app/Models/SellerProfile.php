@@ -163,6 +163,15 @@ class SellerProfile extends Model
     }
 
     /**
+     * Alias used by Laravel scoped route model binding
+     * for the {sellerApplication} route parameter.
+     */
+    public function sellerApplications(): HasMany
+    {
+        return $this->applications();
+    }
+
+    /**
      * Seller verification documents.
      */
     public function documents(): HasMany
