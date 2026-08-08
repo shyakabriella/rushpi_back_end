@@ -32,6 +32,7 @@ class SellerProfile extends Model
         'cover_image',
 
         'business_type',
+        'slug',
 
         'registration_number',
         'tax_identification_number',
@@ -102,7 +103,7 @@ class SellerProfile extends Model
     }
 
     /**
-     * Generate public identifier.
+     * Generate the public identifier automatically.
      */
     protected static function booted(): void
     {
@@ -117,7 +118,7 @@ class SellerProfile extends Model
     }
 
     /**
-     * Route model binding.
+     * Use public_id for route model binding.
      */
     public function getRouteKeyName(): string
     {
@@ -135,7 +136,7 @@ class SellerProfile extends Model
     }
 
     /**
-     * Users belonging to seller.
+     * Users belonging to this seller business.
      */
     public function users(): BelongsToMany
     {
@@ -183,7 +184,7 @@ class SellerProfile extends Model
     }
 
     /**
-     * Products owned by seller.
+     * Products owned by this seller business.
      */
     public function products(): HasMany
     {
@@ -195,7 +196,7 @@ class SellerProfile extends Model
     }
 
     /**
-     * Administrator who approved seller.
+     * Administrator who approved this seller.
      */
     public function approvedBy(): BelongsTo
     {
@@ -206,7 +207,7 @@ class SellerProfile extends Model
     }
 
     /**
-     * Administrator who suspended seller.
+     * Administrator who suspended this seller.
      */
     public function suspendedBy(): BelongsTo
     {
@@ -217,7 +218,7 @@ class SellerProfile extends Model
     }
 
     /**
-     * Determine whether seller is approved.
+     * Determine whether the seller is approved.
      */
     public function isApproved(): bool
     {
