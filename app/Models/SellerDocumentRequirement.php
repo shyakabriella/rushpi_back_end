@@ -7,6 +7,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SellerDocumentRequirement extends Model
 {
@@ -89,6 +90,21 @@ class SellerDocumentRequirement extends Model
         return $query->where(
             'requirement_level',
             self::LEVEL_RECOMMENDED
+        );
+    }
+
+    /**
+     * Documents uploaded against this requirement key.
+     *
+     * seller_documents.document_type stores the same string as
+     * seller_document_requirements.key.
+     */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(
+            SellerDocument::class,
+            'document_type',
+            'key'
         );
     }
 

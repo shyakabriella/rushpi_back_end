@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\SellerDocumentStatus;
-use App\Enums\SellerDocumentType;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -44,28 +43,56 @@ class SellerDocument extends Model
         'checksum_sha256',
     ];
 
+    /**
+     * IMPORTANT:
+     * document_type is intentionally NOT cast to SellerDocumentType.
+     *
+     * Document types are now driven dynamically by
+     * seller_document_requirements.key, so storing document_type as a plain
+     * string allows every active seeded requirement to be uploaded.
+     *
+     * @return array<string, string>
+     */
     protected function casts(): array
     {
         return [
-            'document_type' => SellerDocumentType::class,
-            'status' => SellerDocumentStatus::class,
-            'issued_at' => 'date',
-            'expires_at' => 'date',
-            'scanned_at' => 'datetime',
-            'reviewed_at' => 'datetime',
+            'status' =>
+                SellerDocumentStatus::class,
+
+            'issued_at' =>
+                'date',
+
+            'expires_at' =>
+                'date',
+
+            'scanned_at' =>
+                'datetime',
+
+            'reviewed_at' =>
+                'datetime',
+
+            'size_bytes' =>
+                'integer',
         ];
     }
 
     protected static function booted(): void
     {
-        static::creating(function (SellerDocument $document): void {
-            $document->public_id ??= (string) Str::uuid();
-        });
+        static::creating(
+            function (
+                SellerDocument $document
+            ): void {
+                $document->public_id ??=
+                    (string) Str::uuid();
+            }
+        );
     }
 
     public function sellerProfile(): BelongsTo
     {
-        return $this->belongsTo(SellerProfile::class);
+        return $this->belongsTo(
+            SellerProfile::class
+        );
     }
 
     public function application(): BelongsTo
@@ -76,19 +103,39 @@ class SellerDocument extends Model
         );
     }
 
+    /**
+     * Requirement definition matched by document_type -> key.
+     */
+    public function requirement(): BelongsTo
+    {
+        return $this->belongsTo(
+            SellerDocumentRequirement::class,
+            'document_type',
+            'key'
+        );
+    }
+
     public function uploadedBy(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'uploaded_by');
+        return $this->belongsTo(
+            User::class,
+            'uploaded_by'
+        );
     }
 
     public function reviewedBy(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'reviewed_by');
+        return $this->belongsTo(
+            User::class,
+            'reviewed_by'
+        );
     }
 
     public function accessLogs(): HasMany
     {
-        return $this->hasMany(DocumentAccessLog::class);
+        return $this->hasMany(
+            DocumentAccessLog::class
+        );
     }
 
     public function isExpired(): bool
