@@ -6,6 +6,7 @@ use App\Http\Controllers\API\RegisterController;
 use App\Http\Controllers\API\V1\Admin\BrandController;
 use App\Http\Controllers\API\V1\Admin\CategoryController;
 use App\Http\Controllers\API\V1\Admin\CategorySpecificationController;
+use App\Http\Controllers\API\V1\Admin\CommissionRuleController;
 use App\Http\Controllers\API\V1\Admin\DepartmentController;
 use App\Http\Controllers\API\V1\Admin\ProductModerationController;
 use App\Http\Controllers\API\V1\Admin\SellerVerificationController;
@@ -964,6 +965,138 @@ Route::middleware('auth:sanctum')
                     'brands' =>
                         'brand',
                 ]);
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Commission rules
+                |--------------------------------------------------------------------------
+                |
+                | Marketplace commission precedence:
+                |
+                | Category
+                |     -> Department
+                |         -> Global
+                |
+                | When multiple effective rules exist at the same scope,
+                | the rule with the higher priority should win.
+                |
+                */
+
+                Route::prefix(
+                    'commission-rules'
+                )
+                    ->name(
+                        'commission-rules.'
+                    )
+                    ->controller(
+                        CommissionRuleController::class
+                    )
+                    ->group(function (): void {
+                        /*
+                         * GET /api/admin/commission-rules
+                         */
+                        Route::get(
+                            '/',
+                            'index'
+                        )
+                            ->name(
+                                'index'
+                            );
+
+                        /*
+                         * POST /api/admin/commission-rules
+                         */
+                        Route::post(
+                            '/',
+                            'store'
+                        )
+                            ->middleware(
+                                'throttle:30,1'
+                            )
+                            ->name(
+                                'store'
+                            );
+
+                        /*
+                         * Keep fixed action routes before the dynamic
+                         * show/update/delete route.
+                         */
+                        Route::patch(
+                            '/{commissionRule:public_id}/activate',
+                            'activate'
+                        )
+                            ->middleware(
+                                'throttle:30,1'
+                            )
+                            ->name(
+                                'activate'
+                            );
+
+                        Route::patch(
+                            '/{commissionRule:public_id}/deactivate',
+                            'deactivate'
+                        )
+                            ->middleware(
+                                'throttle:30,1'
+                            )
+                            ->name(
+                                'deactivate'
+                            );
+
+                        /*
+                         * GET /api/admin/commission-rules/{commissionRule}
+                         */
+                        Route::get(
+                            '/{commissionRule:public_id}',
+                            'show'
+                        )
+                            ->name(
+                                'show'
+                            );
+
+                        /*
+                         * PUT /api/admin/commission-rules/{commissionRule}
+                         */
+                        Route::put(
+                            '/{commissionRule:public_id}',
+                            'update'
+                        )
+                            ->middleware(
+                                'throttle:30,1'
+                            )
+                            ->name(
+                                'update'
+                            );
+
+                        /*
+                         * PATCH /api/admin/commission-rules/{commissionRule}
+                         */
+                        Route::patch(
+                            '/{commissionRule:public_id}',
+                            'update'
+                        )
+                            ->middleware(
+                                'throttle:30,1'
+                            )
+                            ->name(
+                                'patch'
+                            );
+
+                        /*
+                         * DELETE /api/admin/commission-rules/{commissionRule}
+                         */
+                        Route::delete(
+                            '/{commissionRule:public_id}',
+                            'destroy'
+                        )
+                            ->middleware(
+                                'throttle:20,1'
+                            )
+                            ->name(
+                                'destroy'
+                            );
+                    });
 
                 /*
                 |--------------------------------------------------------------------------
