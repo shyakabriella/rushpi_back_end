@@ -6,7 +6,6 @@ namespace App\Http\Controllers\API\V1\Admin;
 
 use App\Enums\SellerApplicationStatus;
 use App\Enums\SellerDocumentStatus;
-use App\Enums\SellerDocumentType;
 use App\Enums\SellerProfileStatus;
 use App\Enums\VerificationDecision;
 use App\Http\Controllers\Controller;
@@ -25,6 +24,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SellerVerificationController extends Controller
 {
+    private const MINIMUM_APPROVED_DOCUMENTS = 2;
+
     /**
      * List seller verification applications.
      */
@@ -123,17 +124,26 @@ class SellerVerificationController extends Controller
     ): JsonResponse {
         $this->ensureAdmin($request);
 
+        /*
+         * IMPORTANT:
+         * Do not type-hint these eager-load closures as Builder.
+         * Laravel may pass a HasMany relation instance here.
+         */
         $sellerApplication->load([
             'sellerProfile.addresses',
             'sellerProfile.members.user:id,name,email,phone,status',
-            'documents' => function (Builder $query): void {
+
+            'documents' => function ($query): void {
                 $query->latest();
             },
+
             'documents.uploadedBy:id,name,email',
             'documents.reviewedBy:id,name,email',
-            'reviews' => function (Builder $query): void {
+
+            'reviews' => function ($query): void {
                 $query->latest();
             },
+
             'reviews.reviewer:id,name,email',
             'currentReviewer:id,name,email',
             'decidedBy:id,name,email',
@@ -187,7 +197,8 @@ class SellerVerificationController extends Controller
                     'reviewer_id' => $request->user()->id,
                     'decision' =>
                         VerificationDecision::REVIEW_STARTED,
-                    'reason' => 'Seller verification review started.',
+                    'reason' =>
+                        'Seller verification review started.',
                     'internal_notes' => null,
                     'metadata' => [
                         'previous_status' =>
@@ -290,16 +301,23 @@ class SellerVerificationController extends Controller
                 $document->update([
                     'status' =>
                         SellerDocumentStatus::APPROVED,
-                    'reviewed_by' => $request->user()->id,
-                    'reviewed_at' => now(),
-                    'rejection_reason' => null,
+                    'reviewed_by' =>
+                        $request->user()->id,
+                    'reviewed_at' =>
+                        now(),
+                    'rejection_reason' =>
+                        null,
                 ]);
 
                 DocumentAccessLog::query()->create([
-                    'seller_document_id' => $document->id,
-                    'user_id' => $request->user()->id,
-                    'action' => 'document_approved',
-                    'ip_address' => $request->ip(),
+                    'seller_document_id' =>
+                        $document->id,
+                    'user_id' =>
+                        $request->user()->id,
+                    'action' =>
+                        'document_approved',
+                    'ip_address' =>
+                        $request->ip(),
                     'user_agent' =>
                         $request->userAgent(),
                     'metadata' => [
@@ -315,7 +333,8 @@ class SellerVerificationController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Seller document approved successfully.',
+            'message' =>
+                'Seller document approved successfully.',
             'data' => $document->fresh([
                 'uploadedBy:id,name,email',
                 'reviewedBy:id,name,email',
@@ -335,7 +354,13 @@ class SellerVerificationController extends Controller
 
         $validated = $request->validate([
             'reason' => [
-                'required',
+                'nullable',
+                'string',
+                'min:5',
+                'max:2000',
+            ],
+            'rejection_reason' => [
+                'nullable',
                 'string',
                 'min:5',
                 'max:2000',
@@ -347,12 +372,26 @@ class SellerVerificationController extends Controller
             ],
         ]);
 
+        $reason = $this->firstNonEmptyString(
+            $validated['reason'] ?? null,
+            $validated['rejection_reason'] ?? null
+        );
+
+        if ($reason === null) {
+            throw ValidationException::withMessages([
+                'reason' => [
+                    'A rejection reason is required.',
+                ],
+            ]);
+        }
+
         $document = DB::transaction(
             function () use (
                 $request,
                 $sellerApplication,
                 $sellerDocument,
-                $validated
+                $validated,
+                $reason
             ): SellerDocument {
                 $application = SellerApplication::query()
                     ->whereKey($sellerApplication->id)
@@ -401,21 +440,28 @@ class SellerVerificationController extends Controller
                 $document->update([
                     'status' =>
                         SellerDocumentStatus::REJECTED,
-                    'reviewed_by' => $request->user()->id,
-                    'reviewed_at' => now(),
+                    'reviewed_by' =>
+                        $request->user()->id,
+                    'reviewed_at' =>
+                        now(),
                     'rejection_reason' =>
-                        $validated['reason'],
+                        $reason,
                 ]);
 
                 DocumentAccessLog::query()->create([
-                    'seller_document_id' => $document->id,
-                    'user_id' => $request->user()->id,
-                    'action' => 'document_rejected',
-                    'ip_address' => $request->ip(),
+                    'seller_document_id' =>
+                        $document->id,
+                    'user_id' =>
+                        $request->user()->id,
+                    'action' =>
+                        'document_rejected',
+                    'ip_address' =>
+                        $request->ip(),
                     'user_agent' =>
                         $request->userAgent(),
                     'metadata' => [
-                        'reason' => $validated['reason'],
+                        'reason' =>
+                            $reason,
                         'internal_notes' =>
                             $validated['internal_notes']
                             ?? null,
@@ -428,7 +474,8 @@ class SellerVerificationController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Seller document rejected successfully.',
+            'message' =>
+                'Seller document rejected successfully.',
             'data' => $document->fresh([
                 'uploadedBy:id,name,email',
                 'reviewedBy:id,name,email',
@@ -447,7 +494,13 @@ class SellerVerificationController extends Controller
 
         $validated = $request->validate([
             'message' => [
-                'required',
+                'nullable',
+                'string',
+                'min:10',
+                'max:3000',
+            ],
+            'information_request' => [
+                'nullable',
                 'string',
                 'min:10',
                 'max:3000',
@@ -459,11 +512,25 @@ class SellerVerificationController extends Controller
             ],
         ]);
 
+        $message = $this->firstNonEmptyString(
+            $validated['message'] ?? null,
+            $validated['information_request'] ?? null
+        );
+
+        if ($message === null) {
+            throw ValidationException::withMessages([
+                'message' => [
+                    'An information request message is required.',
+                ],
+            ]);
+        }
+
         $application = DB::transaction(
             function () use (
                 $request,
                 $sellerApplication,
-                $validated
+                $validated,
+                $message
             ): SellerApplication {
                 $application = SellerApplication::query()
                     ->whereKey($sellerApplication->id)
@@ -482,16 +549,19 @@ class SellerVerificationController extends Controller
                     $application
                 );
 
-                $previousStatus = $application->status->value;
+                $previousStatus =
+                    $application->status->value;
 
                 $application->update([
                     'status' =>
                         SellerApplicationStatus::
                             MORE_INFORMATION_REQUIRED,
                     'information_request' =>
-                        $validated['message'],
-                    'rejection_reason' => null,
-                    'current_reviewer_id' => null,
+                        $message,
+                    'rejection_reason' =>
+                        null,
+                    'current_reviewer_id' =>
+                        null,
                 ]);
 
                 $application->sellerProfile()->update([
@@ -501,16 +571,19 @@ class SellerVerificationController extends Controller
                 ]);
 
                 $application->reviews()->create([
-                    'reviewer_id' => $request->user()->id,
+                    'reviewer_id' =>
+                        $request->user()->id,
                     'decision' =>
                         VerificationDecision::
                             INFORMATION_REQUESTED,
-                    'reason' => $validated['message'],
+                    'reason' =>
+                        $message,
                     'internal_notes' =>
                         $validated['internal_notes']
                         ?? null,
                     'metadata' => [
-                        'previous_status' => $previousStatus,
+                        'previous_status' =>
+                            $previousStatus,
                         'new_status' =>
                             SellerApplicationStatus::
                                 MORE_INFORMATION_REQUIRED
@@ -536,6 +609,9 @@ class SellerVerificationController extends Controller
 
     /**
      * Approve the seller application.
+     *
+     * The seller must have at least two approved, unexpired
+     * verification documents.
      */
     public function approve(
         Request $request,
@@ -574,34 +650,46 @@ class SellerVerificationController extends Controller
                     $application
                 );
 
-                $this->ensureRequiredDocumentsAreApproved(
+                $this->ensureMinimumApprovedDocuments(
                     $application
                 );
 
-                $previousStatus = $application->status->value;
+                $previousStatus =
+                    $application->status->value;
 
                 $application->update([
                     'status' =>
                         SellerApplicationStatus::APPROVED,
-                    'information_request' => null,
-                    'rejection_reason' => null,
-                    'decided_at' => now(),
-                    'decided_by' => $request->user()->id,
-                    'current_reviewer_id' => null,
+                    'information_request' =>
+                        null,
+                    'rejection_reason' =>
+                        null,
+                    'decided_at' =>
+                        now(),
+                    'decided_by' =>
+                        $request->user()->id,
+                    'current_reviewer_id' =>
+                        null,
                 ]);
 
                 $application->sellerProfile()->update([
                     'status' =>
                         SellerProfileStatus::APPROVED,
-                    'approved_at' => now(),
-                    'approved_by' => $request->user()->id,
-                    'suspended_at' => null,
-                    'suspended_by' => null,
-                    'suspension_reason' => null,
+                    'approved_at' =>
+                        now(),
+                    'approved_by' =>
+                        $request->user()->id,
+                    'suspended_at' =>
+                        null,
+                    'suspended_by' =>
+                        null,
+                    'suspension_reason' =>
+                        null,
                 ]);
 
                 $application->reviews()->create([
-                    'reviewer_id' => $request->user()->id,
+                    'reviewer_id' =>
+                        $request->user()->id,
                     'decision' =>
                         VerificationDecision::APPROVED,
                     'reason' =>
@@ -610,7 +698,8 @@ class SellerVerificationController extends Controller
                         $validated['internal_notes']
                         ?? null,
                     'metadata' => [
-                        'previous_status' => $previousStatus,
+                        'previous_status' =>
+                            $previousStatus,
                         'new_status' =>
                             SellerApplicationStatus::APPROVED
                                 ->value,
@@ -645,7 +734,13 @@ class SellerVerificationController extends Controller
 
         $validated = $request->validate([
             'reason' => [
-                'required',
+                'nullable',
+                'string',
+                'min:10',
+                'max:3000',
+            ],
+            'rejection_reason' => [
+                'nullable',
                 'string',
                 'min:10',
                 'max:3000',
@@ -657,11 +752,25 @@ class SellerVerificationController extends Controller
             ],
         ]);
 
+        $reason = $this->firstNonEmptyString(
+            $validated['reason'] ?? null,
+            $validated['rejection_reason'] ?? null
+        );
+
+        if ($reason === null) {
+            throw ValidationException::withMessages([
+                'reason' => [
+                    'A rejection reason is required.',
+                ],
+            ]);
+        }
+
         $application = DB::transaction(
             function () use (
                 $request,
                 $sellerApplication,
-                $validated
+                $validated,
+                $reason
             ): SellerApplication {
                 $application = SellerApplication::query()
                     ->whereKey($sellerApplication->id)
@@ -680,36 +789,46 @@ class SellerVerificationController extends Controller
                     $application
                 );
 
-                $previousStatus = $application->status->value;
+                $previousStatus =
+                    $application->status->value;
 
                 $application->update([
                     'status' =>
                         SellerApplicationStatus::REJECTED,
-                    'information_request' => null,
+                    'information_request' =>
+                        null,
                     'rejection_reason' =>
-                        $validated['reason'],
-                    'decided_at' => now(),
-                    'decided_by' => $request->user()->id,
-                    'current_reviewer_id' => null,
+                        $reason,
+                    'decided_at' =>
+                        now(),
+                    'decided_by' =>
+                        $request->user()->id,
+                    'current_reviewer_id' =>
+                        null,
                 ]);
 
                 $application->sellerProfile()->update([
                     'status' =>
                         SellerProfileStatus::REJECTED,
-                    'approved_at' => null,
-                    'approved_by' => null,
+                    'approved_at' =>
+                        null,
+                    'approved_by' =>
+                        null,
                 ]);
 
                 $application->reviews()->create([
-                    'reviewer_id' => $request->user()->id,
+                    'reviewer_id' =>
+                        $request->user()->id,
                     'decision' =>
                         VerificationDecision::REJECTED,
-                    'reason' => $validated['reason'],
+                    'reason' =>
+                        $reason,
                     'internal_notes' =>
                         $validated['internal_notes']
                         ?? null,
                     'metadata' => [
-                        'previous_status' => $previousStatus,
+                        'previous_status' =>
+                            $previousStatus,
                         'new_status' =>
                             SellerApplicationStatus::REJECTED
                                 ->value,
@@ -744,7 +863,13 @@ class SellerVerificationController extends Controller
 
         $validated = $request->validate([
             'reason' => [
-                'required',
+                'nullable',
+                'string',
+                'min:10',
+                'max:3000',
+            ],
+            'suspension_reason' => [
+                'nullable',
                 'string',
                 'min:10',
                 'max:3000',
@@ -756,11 +881,25 @@ class SellerVerificationController extends Controller
             ],
         ]);
 
+        $reason = $this->firstNonEmptyString(
+            $validated['reason'] ?? null,
+            $validated['suspension_reason'] ?? null
+        );
+
+        if ($reason === null) {
+            throw ValidationException::withMessages([
+                'reason' => [
+                    'A suspension reason is required.',
+                ],
+            ]);
+        }
+
         $profile = DB::transaction(
             function () use (
                 $request,
                 $sellerProfile,
-                $validated
+                $validated,
+                $reason
             ): SellerProfile {
                 $profile = SellerProfile::query()
                     ->whereKey($sellerProfile->id)
@@ -799,10 +938,12 @@ class SellerVerificationController extends Controller
                 $profile->update([
                     'status' =>
                         SellerProfileStatus::SUSPENDED,
-                    'suspended_at' => now(),
-                    'suspended_by' => $request->user()->id,
+                    'suspended_at' =>
+                        now(),
+                    'suspended_by' =>
+                        $request->user()->id,
                     'suspension_reason' =>
-                        $validated['reason'],
+                        $reason,
                 ]);
 
                 $application->update([
@@ -811,10 +952,12 @@ class SellerVerificationController extends Controller
                 ]);
 
                 $application->reviews()->create([
-                    'reviewer_id' => $request->user()->id,
+                    'reviewer_id' =>
+                        $request->user()->id,
                     'decision' =>
                         VerificationDecision::SUSPENDED,
-                    'reason' => $validated['reason'],
+                    'reason' =>
+                        $reason,
                     'internal_notes' =>
                         $validated['internal_notes']
                         ?? null,
@@ -834,7 +977,8 @@ class SellerVerificationController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Seller suspended successfully.',
+            'message' =>
+                'Seller suspended successfully.',
             'data' => $profile->fresh([
                 'applications.reviews',
                 'members.user',
@@ -862,7 +1006,11 @@ class SellerVerificationController extends Controller
             $sellerDocument->storage_disk
         );
 
-        if (! $disk->exists($sellerDocument->storage_path)) {
+        if (
+            ! $disk->exists(
+                $sellerDocument->storage_path
+            )
+        ) {
             return response()->json([
                 'success' => false,
                 'message' =>
@@ -872,11 +1020,16 @@ class SellerVerificationController extends Controller
         }
 
         DocumentAccessLog::query()->create([
-            'seller_document_id' => $sellerDocument->id,
-            'user_id' => $request->user()->id,
-            'action' => 'document_downloaded',
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
+            'seller_document_id' =>
+                $sellerDocument->id,
+            'user_id' =>
+                $request->user()->id,
+            'action' =>
+                'document_downloaded',
+            'ip_address' =>
+                $request->ip(),
+            'user_agent' =>
+                $request->userAgent(),
             'metadata' => [
                 'seller_application_id' =>
                     $sellerApplication->id,
@@ -891,7 +1044,8 @@ class SellerVerificationController extends Controller
                     $sellerDocument->mime_type,
                 'Cache-Control' =>
                     'private, no-store, no-cache, must-revalidate',
-                'X-Content-Type-Options' => 'nosniff',
+                'X-Content-Type-Options' =>
+                    'nosniff',
             ]
         );
     }
@@ -899,8 +1053,9 @@ class SellerVerificationController extends Controller
     /**
      * Ensure the authenticated user is an administrator.
      */
-    private function ensureAdmin(Request $request): void
-    {
+    private function ensureAdmin(
+        Request $request
+    ): void {
         abort_unless(
             $request->user() !== null
             && $request->user()->isAdmin(),
@@ -967,22 +1122,12 @@ class SellerVerificationController extends Controller
     }
 
     /**
-     * Ensure all required documents are approved and unexpired.
+     * Require at least two approved and unexpired documents.
      */
-    private function ensureRequiredDocumentsAreApproved(
+    private function ensureMinimumApprovedDocuments(
         SellerApplication $application
     ): void {
-        $requiredTypes = [
-            SellerDocumentType::
-                BUSINESS_REGISTRATION_CERTIFICATE
-                ->value,
-
-            SellerDocumentType::
-                AUTHORIZED_REPRESENTATIVE_ID
-                ->value,
-        ];
-
-        $approvedTypes = $application
+        $approvedDocumentsCount = $application
             ->documents()
             ->where(
                 'status',
@@ -999,25 +1144,39 @@ class SellerVerificationController extends Controller
                         );
                 }
             )
-            ->pluck('document_type')
-            ->unique()
-            ->values()
-            ->all();
+            ->count();
 
-        $missingTypes = array_values(
-            array_diff(
-                $requiredTypes,
-                $approvedTypes
-            )
-        );
-
-        if ($missingTypes !== []) {
+        if (
+            $approvedDocumentsCount
+            < self::MINIMUM_APPROVED_DOCUMENTS
+        ) {
             throw ValidationException::withMessages([
                 'documents' => [
-                    'The following required documents have not been approved: '
-                    .implode(', ', $missingTypes),
+                    sprintf(
+                        'At least %d approved and unexpired verification documents are required before approving the seller. Currently approved: %d.',
+                        self::MINIMUM_APPROVED_DOCUMENTS,
+                        $approvedDocumentsCount
+                    ),
                 ],
             ]);
         }
+    }
+
+    /**
+     * Return the first non-empty string.
+     */
+    private function firstNonEmptyString(
+        ?string ...$values
+    ): ?string {
+        foreach ($values as $value) {
+            if (
+                is_string($value)
+                && trim($value) !== ''
+            ) {
+                return trim($value);
+            }
+        }
+
+        return null;
     }
 }
