@@ -15,7 +15,6 @@ use App\Models\SellerDocument;
 use App\Models\SellerDocumentRequirement;
 use App\Models\SellerProfile;
 use BackedEnum;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -29,18 +28,11 @@ use Throwable;
 class SellerDocumentController extends Controller
 {
     /**
-     * Return the active seller verification document requirements.
-     *
-     * This endpoint is used by the seller verification workspace to populate
-     * the document type selector before any document has been uploaded.
+     * Return active seller verification document requirements.
      */
     public function requirements(
         Request $request
     ): JsonResponse {
-        /*
-         * Keep the endpoint authenticated. Any authenticated user reaching the
-         * seller verification workspace may read the requirement catalog.
-         */
         abort_unless(
             $request->user() !== null,
             401,
@@ -74,10 +66,6 @@ class SellerDocumentController extends Controller
 
     /**
      * List documents belonging to one seller application.
-     *
-     * The response also exposes the active verification requirement catalog
-     * so the seller UI can render required, conditional and recommended
-     * documents from the database instead of hard-coding document types.
      */
     public function index(
         Request $request,
@@ -173,12 +161,15 @@ class SellerDocumentController extends Controller
         $documentType = (string) $validated['document_type'];
 
         /*
-         * All allowed document types are driven by the seeded
-         * seller_document_requirements table.
+         * Document types come dynamically from
+         * seller_document_requirements.
          */
         $requirement = SellerDocumentRequirement::query()
             ->active()
-            ->where('key', $documentType)
+            ->where(
+                'key',
+                $documentType
+            )
             ->first();
 
         if ($requirement === null) {
@@ -190,18 +181,26 @@ class SellerDocumentController extends Controller
         }
 
         /*
-         * For single-file requirements, prevent another current document of
-         * the same type. Rejected or infected files do not block a replacement.
+         * Single-file requirements may have only one current file.
+         *
+         * Rejected, infected, scan failed, expired or deleted
+         * documents do not block replacement.
          */
         if (! $requirement->allow_multiple) {
             $existingCurrentDocument = $sellerApplication
                 ->documents()
-                ->where('document_type', $documentType)
+                ->where(
+                    'document_type',
+                    $documentType
+                )
                 ->whereNotIn(
                     'status',
                     [
                         SellerDocumentStatus::REJECTED->value,
                         SellerDocumentStatus::INFECTED->value,
+                        SellerDocumentStatus::SCAN_FAILED->value,
+                        SellerDocumentStatus::EXPIRED->value,
+                        SellerDocumentStatus::DELETED->value,
                     ]
                 )
                 ->exists();
@@ -218,8 +217,16 @@ class SellerDocumentController extends Controller
             }
         }
 
-        /** @var UploadedFile $file */
+        /** @var UploadedFile|null $file */
         $file = $request->file('document');
+
+        if (! $file instanceof UploadedFile) {
+            throw ValidationException::withMessages([
+                'document' => [
+                    'Select a verification document to upload.',
+                ],
+            ]);
+        }
 
         $temporaryPath = $file->getRealPath();
 
@@ -245,8 +252,8 @@ class SellerDocumentController extends Controller
         }
 
         /*
-         * Prevent the exact same file from being uploaded repeatedly
-         * to the same seller business.
+         * Prevent the exact same file from being uploaded
+         * repeatedly to the same seller profile.
          */
         $duplicateExists = SellerDocument::query()
             ->where(
@@ -284,8 +291,7 @@ class SellerDocumentController extends Controller
         );
 
         /*
-         * Files are stored privately in a quarantine directory.
-         * The public storage disk must never be used here.
+         * Documents are private and start in quarantine.
          */
         $directory = sprintf(
             'seller-documents/quarantine/%s/%s',
@@ -294,15 +300,17 @@ class SellerDocumentController extends Controller
         );
 
         $storageDisk = 'private';
+
         $storagePath = null;
 
         try {
-            $storagePath = Storage::disk($storageDisk)
-                ->putFileAs(
-                    $directory,
-                    $file,
-                    $storedFilename
-                );
+            $storagePath = Storage::disk(
+                $storageDisk
+            )->putFileAs(
+                $directory,
+                $file,
+                $storedFilename
+            );
 
             if (
                 ! is_string($storagePath)
@@ -326,105 +334,113 @@ class SellerDocumentController extends Controller
                     $requirement,
                     $documentType
                 ): SellerDocument {
-                    $document = SellerDocument::query()->create([
-                        'seller_profile_id' =>
-                            $sellerProfile->id,
-
-                        'seller_application_id' =>
-                            $sellerApplication->id,
-
-                        'uploaded_by' =>
-                            $request->user()->id,
-
-                        'document_type' =>
-                            $documentType,
-
-                        /*
-                         * The document must remain quarantined
-                         * until the antivirus scanner marks it clean.
-                         */
-                        'status' =>
-                            SellerDocumentStatus::QUARANTINED,
-
-                        'original_name' =>
-                            basename(
-                                $file->getClientOriginalName()
-                            ),
-
-                        'storage_disk' =>
-                            $storageDisk,
-
-                        'storage_path' =>
-                            $storagePath,
-
-                        'mime_type' =>
-                            $file->getMimeType()
-                            ?? $file->getClientMimeType(),
-
-                        'size_bytes' =>
-                            $file->getSize(),
-
-                        'checksum_sha256' =>
-                            $checksum,
-
-                        'issued_at' =>
-                            $validated['issued_at']
-                            ?? null,
-
-                        /*
-                         * Only persist an expiry date for requirements that
-                         * are configured to support one.
-                         */
-                        'expires_at' =>
-                            $requirement->supports_expiry_date
-                                ? (
-                                    $validated['expires_at']
-                                    ?? null
-                                )
-                                : null,
-
-                        'scanned_at' => null,
-                        'scan_result' => null,
-                        'reviewed_by' => null,
-                        'reviewed_at' => null,
-                        'rejection_reason' => null,
-                    ]);
-
-                    DocumentAccessLog::query()->create([
-                        'seller_document_id' =>
-                            $document->id,
-
-                        'user_id' =>
-                            $request->user()->id,
-
-                        'action' =>
-                            'document_uploaded',
-
-                        'ip_address' =>
-                            $request->ip(),
-
-                        'user_agent' =>
-                            $request->userAgent(),
-
-                        'metadata' => [
+                    $document = SellerDocument::query()
+                        ->create([
                             'seller_profile_id' =>
                                 $sellerProfile->id,
 
                             'seller_application_id' =>
                                 $sellerApplication->id,
 
+                            'uploaded_by' =>
+                                $request->user()->id,
+
                             'document_type' =>
-                                $this->documentTypeValue(
-                                    $document->document_type
+                                $documentType,
+
+                            /*
+                             * Security scan must process the file
+                             * after upload.
+                             */
+                            'status' =>
+                                SellerDocumentStatus::QUARANTINED,
+
+                            'original_name' =>
+                                basename(
+                                    $file->getClientOriginalName()
                                 ),
 
-                            'requirement_name' =>
-                                $requirement->name,
+                            'storage_disk' =>
+                                $storageDisk,
 
-                            'requirement_level' =>
-                                $requirement->requirement_level,
-                        ],
-                    ]);
+                            'storage_path' =>
+                                $storagePath,
+
+                            'mime_type' =>
+                                $file->getMimeType()
+                                ?? $file->getClientMimeType(),
+
+                            'size_bytes' =>
+                                $file->getSize(),
+
+                            'checksum_sha256' =>
+                                $checksum,
+
+                            'issued_at' =>
+                                $validated['issued_at']
+                                ?? null,
+
+                            'expires_at' =>
+                                $requirement->supports_expiry_date
+                                    ? (
+                                        $validated['expires_at']
+                                        ?? null
+                                    )
+                                    : null,
+
+                            'scanned_at' =>
+                                null,
+
+                            'scan_result' =>
+                                null,
+
+                            'reviewed_by' =>
+                                null,
+
+                            'reviewed_at' =>
+                                null,
+
+                            'rejection_reason' =>
+                                null,
+                        ]);
+
+                    DocumentAccessLog::query()
+                        ->create([
+                            'seller_document_id' =>
+                                $document->id,
+
+                            'user_id' =>
+                                $request->user()->id,
+
+                            'action' =>
+                                'document_uploaded',
+
+                            'ip_address' =>
+                                $request->ip(),
+
+                            'user_agent' =>
+                                $request->userAgent(),
+
+                            'metadata' => [
+                                'seller_profile_id' =>
+                                    $sellerProfile->id,
+
+                                'seller_application_id' =>
+                                    $sellerApplication->id,
+
+                                'document_type' =>
+                                    $this->documentTypeValue(
+                                        $document->document_type
+                                    ),
+
+                                'requirement_name' =>
+                                    $requirement->name,
+
+                                'requirement_level' =>
+                                    $requirement
+                                        ->requirement_level,
+                            ],
+                        ]);
 
                     return $document;
                 }
@@ -432,20 +448,31 @@ class SellerDocumentController extends Controller
 
             return response()->json([
                 'success' => true,
+
                 'message' =>
                     'Seller document uploaded successfully and placed in quarantine for security scanning.',
-                'data' => $sellerDocument->fresh([
-                    'uploadedBy:id,name,email',
-                ]),
-                'requirement' => $requirement,
+
+                'data' =>
+                    $sellerDocument->fresh([
+                        'uploadedBy:id,name,email',
+                    ]),
+
+                'requirement' =>
+                    $requirement,
             ], 201);
         } catch (Throwable $exception) {
+            /*
+             * Remove physical file if database operation failed.
+             */
             if (
                 is_string($storagePath)
                 && $storagePath !== ''
             ) {
-                Storage::disk($storageDisk)
-                    ->delete($storagePath);
+                Storage::disk(
+                    $storageDisk
+                )->delete(
+                    $storagePath
+                );
             }
 
             report($exception);
@@ -460,7 +487,7 @@ class SellerDocumentController extends Controller
     }
 
     /**
-     * Securely download a seller's own private document.
+     * Securely download a seller's private document.
      */
     public function download(
         Request $request,
@@ -501,35 +528,36 @@ class SellerDocumentController extends Controller
             ], 404);
         }
 
-        DocumentAccessLog::query()->create([
-            'seller_document_id' =>
-                $sellerDocument->id,
+        DocumentAccessLog::query()
+            ->create([
+                'seller_document_id' =>
+                    $sellerDocument->id,
 
-            'user_id' =>
-                $request->user()->id,
+                'user_id' =>
+                    $request->user()->id,
 
-            'action' =>
-                'document_downloaded_by_seller',
+                'action' =>
+                    'document_downloaded_by_seller',
 
-            'ip_address' =>
-                $request->ip(),
+                'ip_address' =>
+                    $request->ip(),
 
-            'user_agent' =>
-                $request->userAgent(),
+                'user_agent' =>
+                    $request->userAgent(),
 
-            'metadata' => [
-                'seller_profile_id' =>
-                    $sellerProfile->id,
+                'metadata' => [
+                    'seller_profile_id' =>
+                        $sellerProfile->id,
 
-                'seller_application_id' =>
-                    $sellerApplication->id,
+                    'seller_application_id' =>
+                        $sellerApplication->id,
 
-                'document_type' =>
-                    $this->documentTypeValue(
-                        $sellerDocument->document_type
-                    ),
-            ],
-        ]);
+                    'document_type' =>
+                        $this->documentTypeValue(
+                            $sellerDocument->document_type
+                        ),
+                ],
+            ]);
 
         return $disk->download(
             $sellerDocument->storage_path,
@@ -554,7 +582,7 @@ class SellerDocumentController extends Controller
     }
 
     /**
-     * Delete a document before application submission.
+     * Delete a document while the application is editable.
      */
     public function destroy(
         Request $request,
@@ -593,15 +621,20 @@ class SellerDocumentController extends Controller
             ]);
         }
 
-        $storageDisk = $sellerDocument->storage_disk;
-        $storagePath = $sellerDocument->storage_path;
+        $storageDisk =
+            $sellerDocument->storage_disk;
+
+        $storagePath =
+            $sellerDocument->storage_path;
 
         DB::transaction(
             function () use (
                 $sellerDocument
             ): void {
                 $document = SellerDocument::query()
-                    ->whereKey($sellerDocument->id)
+                    ->whereKey(
+                        $sellerDocument->id
+                    )
                     ->lockForUpdate()
                     ->firstOrFail();
 
@@ -610,11 +643,14 @@ class SellerDocumentController extends Controller
         );
 
         /*
-         * Delete the private file only after the database
-         * transaction succeeds.
+         * Delete the physical private file only after
+         * the database transaction succeeds.
          */
-        Storage::disk($storageDisk)
-            ->delete($storagePath);
+        Storage::disk(
+            $storageDisk
+        )->delete(
+            $storagePath
+        );
 
         return response()->json([
             'success' => true,
@@ -625,10 +661,15 @@ class SellerDocumentController extends Controller
     }
 
     /**
-     * Submit the seller application for admin review.
+     * Submit seller application for administrator review.
      *
-     * Required document types are read dynamically from
-     * seller_document_requirements.
+     * Seller only needs a minimum of 2 usable documents.
+     *
+     * QUARANTINED and PENDING_SCAN documents are allowed
+     * to count toward submission.
+     *
+     * INFECTED, SCAN_FAILED, REJECTED, EXPIRED and DELETED
+     * documents do not count.
      */
     public function submit(
         Request $request,
@@ -650,148 +691,111 @@ class SellerDocumentController extends Controller
                 $sellerProfile,
                 $sellerApplication
             ): SellerApplication {
-                $application = SellerApplication::query()
-                    ->whereKey($sellerApplication->id)
-                    ->lockForUpdate()
-                    ->firstOrFail();
+                $application =
+                    SellerApplication::query()
+                        ->whereKey(
+                            $sellerApplication->id
+                        )
+                        ->lockForUpdate()
+                        ->firstOrFail();
 
-                $profile = SellerProfile::query()
-                    ->whereKey($sellerProfile->id)
-                    ->lockForUpdate()
-                    ->firstOrFail();
+                $profile =
+                    SellerProfile::query()
+                        ->whereKey(
+                            $sellerProfile->id
+                        )
+                        ->lockForUpdate()
+                        ->firstOrFail();
 
                 $this->requireEditableApplication(
                     $application
                 );
 
                 /*
-                 * A document still in quarantine or waiting for
-                 * a scan must not enter admin verification.
+                 * Never allow submission if a known infected
+                 * document is attached.
                  */
-                $hasUnscannedDocuments = $application
-                    ->documents()
-                    ->whereIn(
-                        'status',
-                        [
-                            SellerDocumentStatus::QUARANTINED->value,
-                            SellerDocumentStatus::PENDING_SCAN->value,
-                        ]
-                    )
-                    ->exists();
-
-                if ($hasUnscannedDocuments) {
-                    throw ValidationException::withMessages([
-                        'documents' => [
-                            'Some documents are still waiting for security scanning.',
-                        ],
-                    ]);
-                }
-
-                $hasInfectedDocuments = $application
-                    ->documents()
-                    ->where(
-                        'status',
-                        SellerDocumentStatus::INFECTED->value
-                    )
-                    ->exists();
+                $hasInfectedDocuments =
+                    $application
+                        ->documents()
+                        ->where(
+                            'status',
+                            SellerDocumentStatus::INFECTED->value
+                        )
+                        ->exists();
 
                 if ($hasInfectedDocuments) {
                     throw ValidationException::withMessages([
                         'documents' => [
-                            'An infected document was detected. Remove it and upload a safe document.',
+                            'An infected document was detected. Remove it before submitting the application.',
                         ],
                     ]);
                 }
 
                 /*
-                 * Fail closed when the verification catalog has not been
-                 * configured. This prevents an application from being
-                 * submitted with no required documents due to missing seed data.
+                 * Seller must upload at least two usable
+                 * verification documents.
                  */
-                $requiredRequirements =
-                    SellerDocumentRequirement::query()
-                        ->active()
-                        ->required()
-                        ->orderBy('sort_order')
-                        ->get([
-                            'key',
-                            'name',
-                        ]);
+                $minimumDocumentsRequired = 2;
 
-                if ($requiredRequirements->isEmpty()) {
+                $eligibleDocumentsCount =
+                    $application
+                        ->documents()
+
+                        /*
+                         * These statuses cannot count toward
+                         * minimum document requirements.
+                         */
+                        ->whereNotIn(
+                            'status',
+                            [
+                                SellerDocumentStatus::INFECTED->value,
+                                SellerDocumentStatus::SCAN_FAILED->value,
+                                SellerDocumentStatus::REJECTED->value,
+                                SellerDocumentStatus::EXPIRED->value,
+                                SellerDocumentStatus::DELETED->value,
+                            ]
+                        )
+
+                        /*
+                         * Do not count a document if its actual
+                         * expiry date has already passed even if
+                         * its status has not yet been changed to
+                         * EXPIRED.
+                         */
+                        ->where(
+                            function ($query): void {
+                                $query
+                                    ->whereNull(
+                                        'expires_at'
+                                    )
+                                    ->orWhereDate(
+                                        'expires_at',
+                                        '>=',
+                                        now()->toDateString()
+                                    );
+                            }
+                        )
+                        ->count();
+
+                if (
+                    $eligibleDocumentsCount
+                    < $minimumDocumentsRequired
+                ) {
                     throw ValidationException::withMessages([
                         'documents' => [
-                            'Seller verification requirements are not configured. Please contact RushPi administration.',
-                        ],
-                    ]);
-                }
-
-                $requiredDocumentTypes =
-                    $requiredRequirements
-                        ->pluck('key')
-                        ->values()
-                        ->all();
-
-                $availableDocumentTypes = $application
-                    ->documents()
-                    ->whereIn(
-                        'status',
-                        [
-                            SellerDocumentStatus::CLEAN->value,
-                            SellerDocumentStatus::APPROVED->value,
-                        ]
-                    )
-                    ->where(
-                        function (
-                            Builder $query
-                        ): void {
-                            $query
-                                ->whereNull('expires_at')
-                                ->orWhereDate(
-                                    'expires_at',
-                                    '>=',
-                                    now()->toDateString()
-                                );
-                        }
-                    )
-                    ->pluck('document_type')
-                    ->map(
-                        fn (mixed $type): string =>
-                            $this->documentTypeValue($type)
-                    )
-                    ->unique()
-                    ->values()
-                    ->all();
-
-                $missingDocumentTypes = array_values(
-                    array_diff(
-                        $requiredDocumentTypes,
-                        $availableDocumentTypes
-                    )
-                );
-
-                if ($missingDocumentTypes !== []) {
-                    $missingDocumentNames =
-                        $requiredRequirements
-                            ->whereIn(
-                                'key',
-                                $missingDocumentTypes
-                            )
-                            ->pluck('name')
-                            ->values()
-                            ->all();
-
-                    throw ValidationException::withMessages([
-                        'documents' => [
-                            'The following required documents are missing, expired, or not clean: '
-                            . implode(
-                                ', ',
-                                $missingDocumentNames
+                            sprintf(
+                                'Upload at least %d valid verification documents before submitting the application. You currently have %d.',
+                                $minimumDocumentsRequired,
+                                $eligibleDocumentsCount
                             ),
                         ],
                     ]);
                 }
 
+                /*
+                 * Submit application.
+                 */
                 $application->update([
                     'status' =>
                         SellerApplicationStatus::SUBMITTED,
@@ -818,6 +822,10 @@ class SellerDocumentController extends Controller
                         null,
                 ]);
 
+                /*
+                 * Seller now waits for administrator
+                 * verification.
+                 */
                 $profile->update([
                     'status' =>
                         SellerProfileStatus::PENDING_VERIFICATION,
@@ -829,17 +837,20 @@ class SellerDocumentController extends Controller
 
         return response()->json([
             'success' => true,
+
             'message' =>
                 'Seller application submitted successfully and is waiting for administrator review.',
-            'data' => $application->fresh([
-                'sellerProfile',
-                'documents',
-            ]),
+
+            'data' =>
+                $application->fresh([
+                    'sellerProfile',
+                    'documents',
+                ]),
         ]);
     }
 
     /**
-     * Ensure the authenticated user belongs to the seller.
+     * Ensure authenticated user belongs to seller profile.
      */
     private function ensureSellerMember(
         Request $request,
@@ -848,14 +859,16 @@ class SellerDocumentController extends Controller
         abort_unless(
             $request->user() !== null
             && $request->user()
-                ->belongsToSeller($sellerProfile),
+                ->belongsToSeller(
+                    $sellerProfile
+                ),
             403,
             'You are not allowed to access this seller business.'
         );
     }
 
     /**
-     * Ensure the authenticated user owns the seller.
+     * Ensure authenticated user owns seller profile.
      */
     private function ensureSellerOwner(
         Request $request,
@@ -864,14 +877,16 @@ class SellerDocumentController extends Controller
         abort_unless(
             $request->user() !== null
             && $request->user()
-                ->ownsSeller($sellerProfile),
+                ->ownsSeller(
+                    $sellerProfile
+                ),
             403,
             'Only the seller owner can perform this action.'
         );
     }
 
     /**
-     * Ensure an application belongs to the selected profile.
+     * Ensure application belongs to seller profile.
      */
     private function ensureApplicationBelongsToProfile(
         SellerProfile $sellerProfile,
@@ -886,7 +901,7 @@ class SellerDocumentController extends Controller
     }
 
     /**
-     * Ensure a document belongs to the selected application.
+     * Ensure document belongs to application and profile.
      */
     private function ensureDocumentBelongsToApplication(
         SellerProfile $sellerProfile,
@@ -904,7 +919,7 @@ class SellerDocumentController extends Controller
     }
 
     /**
-     * Allow changes only while the application is editable.
+     * Allow document/application changes only while editable.
      */
     private function requireEditableApplication(
         SellerApplication $sellerApplication
@@ -931,16 +946,25 @@ class SellerDocumentController extends Controller
     }
 
     /**
-     * Return a plain string regardless of whether the SellerDocument model
-     * currently casts document_type to a backed enum or leaves it as a string.
+     * Return a plain document type string.
+     *
+     * SellerDocument now stores document_type as a plain
+     * string driven by seller_document_requirements.key.
+     *
+     * BackedEnum support is retained for compatibility with
+     * any older loaded records/code.
      */
     private function documentTypeValue(
         mixed $documentType
     ): string {
-        if ($documentType instanceof BackedEnum) {
-            return (string) $documentType->value;
+        if (
+            $documentType instanceof BackedEnum
+        ) {
+            return (string)
+                $documentType->value;
         }
 
-        return (string) $documentType;
+        return (string)
+            $documentType;
     }
 }
