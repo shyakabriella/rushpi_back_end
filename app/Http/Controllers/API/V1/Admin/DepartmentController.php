@@ -5,69 +5,82 @@ declare(strict_types=1);
 namespace App\Http\Controllers\API\V1\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Admin\StoreDepartmentRequest;
-use App\Http\Requests\Admin\SyncDepartmentCategoriesRequest;
-use App\Http\Requests\Admin\UpdateDepartmentRequest;
-use App\Http\Resources\Admin\DepartmentResource;
-use App\Models\Category;
-use App\Models\Department;
+use App\Http\Requests\Admin\StoreBrandRequest;
+use App\Http\Requests\Admin\UpdateBrandRequest;
+use App\Http\Resources\BrandResource;
+use App\Models\Brand;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rule;
 use Throwable;
 
-final class DepartmentController
-    extends Controller
+final class BrandController extends Controller
 {
+    /**
+     * Display a paginated list of marketplace brands.
+     */
     public function index(
         Request $request
     ): JsonResponse {
-        $validated =
-            $request->validate([
-                'q' => [
-                    'nullable',
-                    'string',
-                    'max:150',
-                ],
+        $validated = $request->validate([
+            'q' => [
+                'nullable',
+                'string',
+                'max:150',
+            ],
 
-                'is_active' => [
-                    'nullable',
-                    'boolean',
-                ],
+            'is_active' => [
+                'nullable',
+                'boolean',
+            ],
 
-                'include_categories' => [
-                    'nullable',
-                    'boolean',
-                ],
+            'sort_by' => [
+                'nullable',
+                Rule::in([
+                    'sort_order',
+                    'name',
+                    'created_at',
+                    'updated_at',
+                ]),
+            ],
 
-                'per_page' => [
-                    'nullable',
-                    'integer',
-                    'min:1',
-                    'max:100',
-                ],
-            ]);
+            'sort_direction' => [
+                'nullable',
+                Rule::in([
+                    'asc',
+                    'desc',
+                ]),
+            ],
 
-        $query =
-            Department::query()
-                ->withCount(
-                    'categories'
-                );
+            'per_page' => [
+                'nullable',
+                'integer',
+                'min:1',
+                'max:100',
+            ],
+        ]);
 
+        $query = Brand::query()
+            ->withCount('products');
+
+        /*
+         * Search brands.
+         */
         if (
             isset($validated['q'])
             && trim(
-                (string)
-                $validated['q']
+                (string) $validated['q']
             ) !== ''
         ) {
             $query->search(
-                (string)
-                $validated['q']
+                (string) $validated['q']
             );
         }
 
+        /*
+         * Filter by active/inactive status.
+         */
         if (
             array_key_exists(
                 'is_active',
@@ -82,52 +95,68 @@ final class DepartmentController
             );
         }
 
-        if (
-            $request->boolean(
-                'include_categories'
-            )
-        ) {
-            $query->with([
-                'categories.parent:id,public_id,name,slug',
-            ]);
+        /*
+         * Sorting.
+         */
+        $sortBy = $validated['sort_by']
+            ?? 'sort_order';
+
+        $sortDirection =
+            $validated['sort_direction']
+            ?? 'asc';
+
+        $query->orderBy(
+            $sortBy,
+            $sortDirection
+        );
+
+        /*
+         * Always keep brand names deterministic
+         * when sorting by another column.
+         */
+        if ($sortBy !== 'name') {
+            $query->orderBy('name');
         }
 
-        $departments =
-            $query
-                ->ordered()
-                ->paginate(
-                    (int) (
-                        $validated[
-                            'per_page'
-                        ] ?? 15
-                    )
+        $brands = $query
+            ->paginate(
+                (int) (
+                    $validated['per_page']
+                    ?? 15
                 )
-                ->withQueryString();
+            )
+            ->withQueryString();
 
-        return DepartmentResource::collection(
-            $departments
+        return BrandResource::collection(
+            $brands
         )
             ->additional([
                 'success' => true,
 
                 'message' =>
-                    'Departments retrieved successfully.',
+                    'Brands retrieved successfully.',
             ])
             ->response();
     }
 
+    /**
+     * Create a marketplace brand.
+     */
     public function store(
-        StoreDepartmentRequest $request
+        StoreBrandRequest $request
     ): JsonResponse {
-        $department =
-            DB::transaction(
+        try {
+            $brand = DB::transaction(
                 function () use (
                     $request
-                ): Department {
+                ): Brand {
                     $data =
-                        $request
-                            ->validated();
+                        $request->validated();
 
+                    /*
+                     * Allow Brand model to generate
+                     * the slug when none is supplied.
+                     */
                     if (
                         array_key_exists(
                             'slug',
@@ -142,72 +171,84 @@ final class DepartmentController
                         );
                     }
 
-                    $data['created_by'] =
-                        $request
-                            ->user()
-                            ?->id;
-
-                    $data['updated_by'] =
-                        $request
-                            ->user()
-                            ?->id;
-
-                    return Department::query()
+                    return Brand::query()
                         ->create(
                             $data
                         );
                 }
             );
 
-        $department->loadCount(
-            'categories'
-        );
+            $brand->loadCount(
+                'products'
+            );
 
-        return response()->json([
-            'success' => true,
+            return response()->json([
+                'success' => true,
 
-            'message' =>
-                'Department created successfully.',
+                'message' =>
+                    'Brand created successfully.',
 
-            'data' =>
-                new DepartmentResource(
-                    $department
-                ),
-        ], 201);
+                'data' =>
+                    new BrandResource(
+                        $brand
+                    ),
+            ], 201);
+        } catch (
+            Throwable $exception
+        ) {
+            report(
+                $exception
+            );
+
+            return response()->json([
+                'success' => false,
+
+                'message' =>
+                    'Unable to create the brand.',
+
+                'data' => null,
+            ], 500);
+        }
     }
 
+    /**
+     * Display one marketplace brand.
+     */
     public function show(
         Request $request,
-        Department $department
+        Brand $brand
     ): JsonResponse {
-        $department->load([
-            'categories.parent:id,public_id,name,slug',
-        ]);
-
-        $department->loadCount(
-            'categories'
+        $brand->loadCount(
+            'products'
         );
 
         return response()->json([
             'success' => true,
 
             'message' =>
-                'Department retrieved successfully.',
+                'Brand retrieved successfully.',
 
             'data' =>
-                new DepartmentResource(
-                    $department
+                new BrandResource(
+                    $brand
                 ),
         ]);
     }
 
+    /**
+     * Update a marketplace brand.
+     */
     public function update(
-        UpdateDepartmentRequest $request,
-        Department $department
+        UpdateBrandRequest $request,
+        Brand $brand
     ): JsonResponse {
         $data =
             $request->validated();
 
+        /*
+         * If slug is blank, leave slug generation
+         * to the Brand model.
+         */
         if (
             array_key_exists(
                 'slug',
@@ -222,262 +263,87 @@ final class DepartmentController
             );
         }
 
-        $data['updated_by'] =
-            $request
-                ->user()
-                ?->id;
-
-        $department->update(
-            $data
-        );
-
-        $department->refresh();
-
-        $department->load([
-            'categories.parent:id,public_id,name,slug',
-        ]);
-
-        $department->loadCount(
-            'categories'
-        );
-
-        return response()->json([
-            'success' => true,
-
-            'message' =>
-                'Department updated successfully.',
-
-            'data' =>
-                new DepartmentResource(
-                    $department
-                ),
-        ]);
-    }
-
-    public function syncCategories(
-        SyncDepartmentCategoriesRequest $request,
-        Department $department
-    ): JsonResponse {
-        $validated =
-            $request->validated();
-
-        $items =
-            collect(
-                $validated[
-                    'categories'
-                ]
-            );
-
-        $publicIds =
-            $items
-                ->pluck(
-                    'category_public_id'
-                )
-                ->values()
-                ->all();
-
-        $categories =
-            Category::query()
-                ->whereIn(
-                    'public_id',
-                    $publicIds
-                )
-                ->get()
-                ->keyBy(
-                    'public_id'
-                );
-
-        $moveExisting =
-            (bool) (
-                $validated[
-                    'move_existing'
-                ] ?? false
-            );
-
-        DB::transaction(
-            function () use (
-                $items,
-                $categories,
-                $department,
-                $moveExisting
-            ): void {
-                $sync = [];
-
-                foreach (
-                    $items
-                    as $item
-                ) {
-                    /** @var Category $category */
-                    $category =
-                        $categories->get(
-                            $item[
-                                'category_public_id'
-                            ]
-                        );
-
-                    $existingAssignment =
-                        DB::table(
-                            'department_category'
-                        )
-                            ->where(
-                                'category_id',
-                                $category
-                                    ->getKey()
-                            )
-                            ->where(
-                                'department_id',
-                                '!=',
-                                $department
-                                    ->getKey()
-                            )
-                            ->first();
-
-                    if (
-                        $existingAssignment
-                        !== null
-                        && !$moveExisting
-                    ) {
-                        $otherDepartment =
-                            Department::query()
-                                ->find(
-                                    (int)
-                                    $existingAssignment
-                                        ->department_id
-                                );
-
-                        throw ValidationException::withMessages([
-                            'categories' => [
-                                sprintf(
-                                    'Category "%s" already belongs to department "%s". Set move_existing=true to move it.',
-                                    $category
-                                        ->name,
-                                    $otherDepartment
-                                        ?->name
-                                        ?? 'another department'
-                                ),
-                            ],
-                        ]);
-                    }
-
-                    if (
-                        $existingAssignment
-                        !== null
-                        && $moveExisting
-                    ) {
-                        DB::table(
-                            'department_category'
-                        )
-                            ->where(
-                                'category_id',
-                                $category
-                                    ->getKey()
-                            )
-                            ->where(
-                                'department_id',
-                                '!=',
-                                $department
-                                    ->getKey()
-                            )
-                            ->delete();
-                    }
-
-                    $sync[
-                        $category->getKey()
-                    ] = [
-                        'sort_order' =>
-                            (int) (
-                                $item[
-                                    'sort_order'
-                                ] ?? 0
-                            ),
-
-                        'is_featured' =>
-                            (bool) (
-                                $item[
-                                    'is_featured'
-                                ] ?? false
-                            ),
-
-                        'is_active' =>
-                            (bool) (
-                                $item[
-                                    'is_active'
-                                ] ?? true
-                            ),
-                    ];
-                }
-
-                $department
-                    ->categories()
-                    ->sync(
-                        $sync
+        try {
+            DB::transaction(
+                function () use (
+                    $brand,
+                    $data
+                ): void {
+                    $brand->update(
+                        $data
                     );
-            }
-        );
+                }
+            );
 
-        $department->load([
-            'categories.parent:id,public_id,name,slug',
-        ]);
+            $brand->refresh();
 
-        $department->loadCount(
-            'categories'
-        );
+            $brand->loadCount(
+                'products'
+            );
 
-        return response()->json([
-            'success' => true,
+            return response()->json([
+                'success' => true,
 
-            'message' =>
-                'Department categories updated successfully.',
+                'message' =>
+                    'Brand updated successfully.',
 
-            'data' =>
-                new DepartmentResource(
-                    $department
-                ),
-        ]);
-    }
-
-    public function destroy(
-        Request $request,
-        Department $department
-    ): JsonResponse {
-        if (
-            $department
-                ->categories()
-                ->exists()
+                'data' =>
+                    new BrandResource(
+                        $brand
+                    ),
+            ]);
+        } catch (
+            Throwable $exception
         ) {
+            report(
+                $exception
+            );
+
             return response()->json([
                 'success' => false,
 
                 'message' =>
-                    'This department cannot be deleted while categories are assigned to it.',
+                    'Unable to update the brand.',
 
                 'data' => null,
-            ], 409);
+            ], 500);
         }
+    }
 
+    /**
+     * Soft-delete a marketplace brand.
+     */
+    public function destroy(
+        Request $request,
+        Brand $brand
+    ): JsonResponse {
+        /*
+         * Do not remove brands already used
+         * by marketplace products.
+         */
         if (
-            $department
-                ->commissionRules()
+            $brand
+                ->products()
                 ->exists()
         ) {
             return response()->json([
                 'success' => false,
 
                 'message' =>
-                    'This department cannot be deleted while commission rules reference it.',
+                    'This brand cannot be deleted while products are assigned to it.',
 
                 'data' => null,
             ], 409);
         }
 
         try {
-            $department->delete();
+            $brand->delete();
 
             return response()->json([
                 'success' => true,
 
                 'message' =>
-                    'Department deleted successfully.',
+                    'Brand deleted successfully.',
 
                 'data' => null,
             ]);
@@ -492,7 +358,7 @@ final class DepartmentController
                 'success' => false,
 
                 'message' =>
-                    'Unable to delete the department.',
+                    'Unable to delete the brand.',
 
                 'data' => null,
             ], 500);
