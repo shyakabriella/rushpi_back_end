@@ -1056,6 +1056,28 @@ Route::middleware('auth:sanctum')
                 |--------------------------------------------------------------------------
                 */
 
+                /*
+                 * Run malware/security scan for a quarantined document.
+                 *
+                 * Status flow:
+                 * quarantined -> pending_scan
+                 *             -> clean | infected | scan_failed
+                 */
+                Route::post(
+                    'seller-applications/{sellerApplication:public_id}'
+                    . '/documents/{sellerDocument:public_id}/scan',
+                    [
+                        SellerVerificationController::class,
+                        'scanDocument',
+                    ]
+                )
+                    ->middleware(
+                        'throttle:10,1'
+                    )
+                    ->name(
+                        'seller-applications.documents.scan'
+                    );
+
                 Route::post(
                     'seller-applications/{sellerApplication:public_id}'
                     . '/documents/{sellerDocument:public_id}/approve',

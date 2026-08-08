@@ -21,6 +21,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\Process\Process;
+use Throwable;
 
 class SellerVerificationController extends Controller
 {
@@ -225,6 +227,227 @@ class SellerVerificationController extends Controller
                 'currentReviewer',
             ]),
         ]);
+    }
+
+
+    /**
+     * Run a malware/security scan for a quarantined seller document.
+     *
+     * Status flow:
+     * QUARANTINED / SCAN_FAILED
+     *      -> PENDING_SCAN
+     *      -> CLEAN | INFECTED | SCAN_FAILED
+     */
+    public function scanDocument(
+        Request $request,
+        SellerApplication $sellerApplication,
+        SellerDocument $sellerDocument
+    ): JsonResponse {
+        $this->ensureAdmin($request);
+
+        $this->ensureDocumentBelongsToApplication(
+            $sellerApplication,
+            $sellerDocument
+        );
+
+        $this->requireApplicationStatus(
+            $sellerApplication,
+            [
+                SellerApplicationStatus::UNDER_REVIEW,
+            ]
+        );
+
+        $this->ensureAssignedReviewer(
+            $request,
+            $sellerApplication
+        );
+
+        if (
+            ! in_array(
+                $sellerDocument->status,
+                [
+                    SellerDocumentStatus::QUARANTINED,
+                    SellerDocumentStatus::SCAN_FAILED,
+                ],
+                true
+            )
+        ) {
+            throw ValidationException::withMessages([
+                'document' => [
+                    sprintf(
+                        'This document cannot be scanned while its status is %s.',
+                        $sellerDocument->status->value
+                    ),
+                ],
+            ]);
+        }
+
+        $disk = Storage::disk(
+            $sellerDocument->storage_disk
+        );
+
+        if (
+            ! $disk->exists(
+                $sellerDocument->storage_path
+            )
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' =>
+                    'The document file was not found in private storage.',
+                'data' => null,
+            ], 404);
+        }
+
+        /*
+         * The private disk is currently a local filesystem disk.
+         * Storage::path() gives clamscan an absolute server path.
+         */
+        try {
+            $absolutePath = $disk->path(
+                $sellerDocument->storage_path
+            );
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return response()->json([
+                'success' => false,
+                'message' =>
+                    'This storage disk does not support local security scanning.',
+                'data' => null,
+            ], 500);
+        }
+
+        $sellerDocument->update([
+            'status' =>
+                SellerDocumentStatus::PENDING_SCAN,
+            'scanned_at' =>
+                null,
+            'scan_result' =>
+                'Security scan started.',
+        ]);
+
+        try {
+            /*
+             * Exit codes used by ClamAV clamscan:
+             * 0 = no virus found
+             * 1 = virus found
+             * 2 = scan error
+             */
+            $process = new Process([
+                'clamscan',
+                '--no-summary',
+                $absolutePath,
+            ]);
+
+            $process->setTimeout(120);
+            $process->run();
+
+            $exitCode =
+                $process->getExitCode();
+
+            $output = trim(
+                $process->getOutput()
+                .PHP_EOL
+                .$process->getErrorOutput()
+            );
+
+            /*
+             * Avoid storing an unexpectedly large process output.
+             */
+            $scanResult = mb_substr(
+                $output !== ''
+                    ? $output
+                    : 'ClamAV returned no scan output.',
+                0,
+                8000
+            );
+
+            if ($exitCode === 0) {
+                $status =
+                    SellerDocumentStatus::CLEAN;
+
+                $message =
+                    'Document scanned successfully. No malware was detected.';
+            } elseif ($exitCode === 1) {
+                $status =
+                    SellerDocumentStatus::INFECTED;
+
+                $message =
+                    'Security scan completed and malware was detected.';
+            } else {
+                $status =
+                    SellerDocumentStatus::SCAN_FAILED;
+
+                $message =
+                    'The document security scan could not be completed.';
+            }
+
+            $sellerDocument->update([
+                'status' =>
+                    $status,
+                'scanned_at' =>
+                    now(),
+                'scan_result' =>
+                    $scanResult,
+            ]);
+
+            DocumentAccessLog::query()->create([
+                'seller_document_id' =>
+                    $sellerDocument->id,
+                'user_id' =>
+                    $request->user()->id,
+                'action' =>
+                    'document_security_scanned',
+                'ip_address' =>
+                    $request->ip(),
+                'user_agent' =>
+                    $request->userAgent(),
+                'metadata' => [
+                    'scan_engine' =>
+                        'clamav',
+                    'exit_code' =>
+                        $exitCode,
+                    'result_status' =>
+                        $status->value,
+                ],
+            ]);
+
+            return response()->json([
+                'success' =>
+                    true,
+                'message' =>
+                    $message,
+                'data' =>
+                    $sellerDocument->fresh([
+                        'uploadedBy:id,name,email',
+                        'reviewedBy:id,name,email',
+                    ]),
+            ]);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            $sellerDocument->update([
+                'status' =>
+                    SellerDocumentStatus::SCAN_FAILED,
+                'scanned_at' =>
+                    now(),
+                'scan_result' =>
+                    mb_substr(
+                        $exception->getMessage(),
+                        0,
+                        8000
+                    ),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' =>
+                    'Security scanner is unavailable or failed to execute. Verify that ClamAV is installed in the application container.',
+                'data' =>
+                    $sellerDocument->fresh(),
+            ], 503);
+        }
     }
 
     /**
