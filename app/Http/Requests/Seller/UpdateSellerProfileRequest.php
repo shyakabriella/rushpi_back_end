@@ -6,11 +6,11 @@ namespace App\Http\Requests\API\V1\Seller;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class UpdateSellerProfileRequest extends FormRequest
+final class UpdateSellerProfileRequest extends FormRequest
 {
     /**
-     * Authorization is handled by the controller
-     * using ownsSeller().
+     * Ownership / seller authorization is enforced
+     * by SellerProfileController::update().
      */
     public function authorize(): bool
     {
@@ -18,8 +18,6 @@ class UpdateSellerProfileRequest extends FormRequest
     }
 
     /**
-     * Validation rules.
-     *
      * @return array<string, mixed>
      */
     public function rules(): array
@@ -70,7 +68,7 @@ class UpdateSellerProfileRequest extends FormRequest
                 'sometimes',
                 'nullable',
                 'string',
-                'max:50',
+                'max:100',
             ],
 
             /*
@@ -114,13 +112,6 @@ class UpdateSellerProfileRequest extends FormRequest
                 'max:255',
             ],
 
-            'website' => [
-                'sometimes',
-                'nullable',
-                'url',
-                'max:255',
-            ],
-
             /*
             |--------------------------------------------------------------------------
             | Registration
@@ -131,26 +122,26 @@ class UpdateSellerProfileRequest extends FormRequest
                 'sometimes',
                 'nullable',
                 'string',
-                'max:100',
+                'max:255',
             ],
 
             'tin_number' => [
                 'sometimes',
                 'nullable',
                 'string',
-                'max:100',
+                'max:255',
             ],
 
             'tax_identification_number' => [
                 'sometimes',
                 'nullable',
                 'string',
-                'max:100',
+                'max:255',
             ],
 
             /*
             |--------------------------------------------------------------------------
-            | Customer policies
+            | Policies
             |--------------------------------------------------------------------------
             */
 
@@ -172,6 +163,15 @@ class UpdateSellerProfileRequest extends FormRequest
             |--------------------------------------------------------------------------
             | Business address
             |--------------------------------------------------------------------------
+            |
+            | The frontend sends:
+            |
+            | address[country]
+            | address[province]
+            | address[district]
+            | address[sector]
+            | address[address_line]
+            |
             */
 
             'address' => [
@@ -225,7 +225,7 @@ class UpdateSellerProfileRequest extends FormRequest
                 'sometimes',
                 'nullable',
                 'string',
-                'max:500',
+                'max:1000',
             ],
 
             'address.postal_code' => [
