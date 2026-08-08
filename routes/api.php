@@ -222,6 +222,21 @@ Route::middleware('auth:sanctum')
                 |--------------------------------------------------------------------------
                 */
 
+                /*
+                 * Active verification requirement catalog.
+                 *
+                 * The seller verification workspace uses this endpoint to
+                 * populate the Document type selector before any document has
+                 * been uploaded.
+                 */
+                Route::get(
+                    'document-requirements',
+                    [SellerDocumentController::class, 'requirements']
+                )
+                    ->name(
+                        'document-requirements.index'
+                    );
+
                 Route::get(
                     'profiles/{sellerProfile:public_id}'
                     . '/applications/{sellerApplication:public_id}'

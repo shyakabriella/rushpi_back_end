@@ -29,6 +29,50 @@ use Throwable;
 class SellerDocumentController extends Controller
 {
     /**
+     * Return the active seller verification document requirements.
+     *
+     * This endpoint is used by the seller verification workspace to populate
+     * the document type selector before any document has been uploaded.
+     */
+    public function requirements(
+        Request $request
+    ): JsonResponse {
+        /*
+         * Keep the endpoint authenticated. Any authenticated user reaching the
+         * seller verification workspace may read the requirement catalog.
+         */
+        abort_unless(
+            $request->user() !== null,
+            401,
+            'Unauthenticated.'
+        );
+
+        $requirements = SellerDocumentRequirement::query()
+            ->active()
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get([
+                'id',
+                'key',
+                'name',
+                'requirement_level',
+                'condition',
+                'description',
+                'allow_multiple',
+                'supports_expiry_date',
+                'is_active',
+                'sort_order',
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'message' =>
+                'Seller document requirements retrieved successfully.',
+            'data' => $requirements,
+        ]);
+    }
+
+    /**
      * List documents belonging to one seller application.
      *
      * The response also exposes the active verification requirement catalog
