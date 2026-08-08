@@ -6,6 +6,7 @@ use App\Http\Controllers\API\RegisterController;
 use App\Http\Controllers\API\V1\Admin\BrandController;
 use App\Http\Controllers\API\V1\Admin\CategoryController;
 use App\Http\Controllers\API\V1\Admin\CategorySpecificationController;
+use App\Http\Controllers\API\V1\Admin\DepartmentController;
 use App\Http\Controllers\API\V1\Admin\ProductModerationController;
 use App\Http\Controllers\API\V1\Admin\SellerVerificationController;
 use App\Http\Controllers\API\V1\Admin\SpecificationDefinitionController;
@@ -683,6 +684,50 @@ Route::middleware('auth:sanctum')
             )
             ->name('api.admin.')
             ->group(function (): void {
+
+                /*
+                |--------------------------------------------------------------------------
+                | Departments
+                |--------------------------------------------------------------------------
+                |
+                | Departments sit above the existing category hierarchy.
+                |
+                | Example:
+                |
+                | Electronics (Department)
+                |   -> Computers (Category)
+                |      -> Laptops (Subcategory through categories.parent_id)
+                |
+                */
+
+                Route::apiResource(
+                    'departments',
+                    DepartmentController::class
+                )->parameters([
+                    'departments' =>
+                        'department',
+                ]);
+
+                /*
+                 * Replace/synchronize the categories assigned
+                 * to one marketplace department.
+                 *
+                 * PUT /api/admin/departments/{department}/categories
+                 */
+                Route::put(
+                    'departments/{department:public_id}/categories',
+                    [
+                        DepartmentController::class,
+                        'syncCategories',
+                    ]
+                )
+                    ->middleware(
+                        'throttle:30,1'
+                    )
+                    ->name(
+                        'departments.categories.sync'
+                    );
+
                 /*
                 |--------------------------------------------------------------------------
                 | Specification definitions
