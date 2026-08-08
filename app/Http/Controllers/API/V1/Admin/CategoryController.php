@@ -34,7 +34,17 @@ class CategoryController extends Controller
         $query = Category::query()
             ->with([
                 'parent:id,public_id,name,slug',
-                'children' => function (Builder $query): void {
+
+                /*
+                 * Do not type-hint this eager-load callback as Builder.
+                 *
+                 * Laravel may pass the actual relationship instance
+                 * (HasMany) into eager-loading constraints. Restricting
+                 * the parameter to Eloquent\Builder causes a TypeError
+                 * as soon as a category exists and the children relation
+                 * is eager loaded.
+                 */
+                'children' => function ($query): void {
                     $query
                         ->select([
                             'id',
@@ -49,19 +59,31 @@ class CategoryController extends Controller
                             'created_at',
                             'updated_at',
                         ])
-                        ->withCount('products');
+                        ->withCount('products')
+                        ->orderBy('sort_order')
+                        ->orderBy('name');
                 },
             ])
             ->withCount('products');
 
-        $search = trim((string) $request->input('q'));
+        $search = trim(
+            (string) $request->input('q')
+        );
 
         if ($search !== '') {
             $query->where(
                 function (Builder $categoryQuery) use ($search): void {
                     $categoryQuery
-                        ->where('name', 'like', '%'.$search.'%')
-                        ->orWhere('slug', 'like', '%'.$search.'%')
+                        ->where(
+                            'name',
+                            'like',
+                            '%'.$search.'%'
+                        )
+                        ->orWhere(
+                            'slug',
+                            'like',
+                            '%'.$search.'%'
+                        )
                         ->orWhere(
                             'description',
                             'like',
@@ -78,10 +100,23 @@ class CategoryController extends Controller
             );
         }
 
+        /*
+         * Root categories have no parent.
+         *
+         * Example:
+         * Electronics
+         * └── Computers & Laptops
+         *
+         * If Computers & Laptops is the root category assigned
+         * directly to a department, its categories.parent_id is null.
+         */
         if ($request->boolean('root_only')) {
             $query->whereNull('parent_id');
         }
 
+        /*
+         * Filter categories by their parent's public ID.
+         */
         $parentPublicId = trim(
             (string) $request->input('parent')
         );
@@ -109,7 +144,8 @@ class CategoryController extends Controller
         return CategoryResource::collection($categories)
             ->additional([
                 'success' => true,
-                'message' => 'Categories retrieved successfully.',
+                'message' =>
+                    'Categories retrieved successfully.',
             ])
             ->response();
     }
@@ -136,7 +172,8 @@ class CategoryController extends Controller
                         unset($data['slug']);
                     }
 
-                    return Category::query()->create($data);
+                    return Category::query()
+                        ->create($data);
                 }
             );
 
@@ -149,15 +186,18 @@ class CategoryController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Category created successfully.',
-                'data' => new CategoryResource($category),
+                'message' =>
+                    'Category created successfully.',
+                'data' =>
+                    new CategoryResource($category),
             ], 201);
         } catch (Throwable $exception) {
             report($exception);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Unable to create the category.',
+                'message' =>
+                    'Unable to create the category.',
                 'data' => null,
             ], 500);
         }
@@ -176,7 +216,13 @@ class CategoryController extends Controller
 
         $category->load([
             'parent:id,public_id,name,slug',
-            'children' => function (Builder $query): void {
+
+            /*
+             * Same rule as index(): do not type-hint this
+             * eager-loading callback as Builder because Laravel
+             * may pass a HasMany relationship instance.
+             */
+            'children' => function ($query): void {
                 $query
                     ->withCount('products')
                     ->orderBy('sort_order')
@@ -188,8 +234,10 @@ class CategoryController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Category retrieved successfully.',
-            'data' => new CategoryResource($category),
+            'message' =>
+                'Category retrieved successfully.',
+            'data' =>
+                new CategoryResource($category),
         ]);
     }
 
@@ -231,7 +279,10 @@ class CategoryController extends Controller
 
         try {
             DB::transaction(
-                function () use ($category, $data): void {
+                function () use (
+                    $category,
+                    $data
+                ): void {
                     $category->update($data);
                 }
             );
@@ -247,15 +298,18 @@ class CategoryController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Category updated successfully.',
-                'data' => new CategoryResource($category),
+                'message' =>
+                    'Category updated successfully.',
+                'data' =>
+                    new CategoryResource($category),
             ]);
         } catch (Throwable $exception) {
             report($exception);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Unable to update the category.',
+                'message' =>
+                    'Unable to update the category.',
                 'data' => null,
             ], 500);
         }
@@ -295,7 +349,8 @@ class CategoryController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Category deleted successfully.',
+                'message' =>
+                    'Category deleted successfully.',
                 'data' => null,
             ]);
         } catch (Throwable $exception) {
@@ -303,7 +358,8 @@ class CategoryController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Unable to delete the category.',
+                'message' =>
+                    'Unable to delete the category.',
                 'data' => null,
             ], 500);
         }
@@ -327,7 +383,8 @@ class CategoryController extends Controller
             return true;
         }
 
-        $parent = Category::query()->find($parentId);
+        $parent = Category::query()
+            ->find($parentId);
 
         while ($parent !== null) {
             if ($parent->id === $category->id) {
@@ -338,9 +395,8 @@ class CategoryController extends Controller
                 break;
             }
 
-            $parent = Category::query()->find(
-                $parent->parent_id
-            );
+            $parent = Category::query()
+                ->find($parent->parent_id);
         }
 
         return false;
@@ -349,8 +405,9 @@ class CategoryController extends Controller
     /**
      * Check whether the authenticated user is an administrator.
      */
-    private function isAdministrator(Request $request): bool
-    {
+    private function isAdministrator(
+        Request $request
+    ): bool {
         $user = $request->user();
 
         return $user !== null
