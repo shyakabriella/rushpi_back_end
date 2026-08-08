@@ -1,0 +1,261 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Requests\API\V1\Seller;
+
+use Illuminate\Foundation\Http\FormRequest;
+
+class UpdateSellerProfileRequest extends FormRequest
+{
+    /**
+     * Authorization is handled by the controller
+     * using ownsSeller().
+     */
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Validation rules.
+     *
+     * @return array<string, mixed>
+     */
+    public function rules(): array
+    {
+        return [
+            /*
+            |--------------------------------------------------------------------------
+            | Store identity
+            |--------------------------------------------------------------------------
+            */
+
+            'business_name' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:255',
+            ],
+
+            'legal_business_name' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:255',
+            ],
+
+            'store_name' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:255',
+            ],
+
+            'trading_name' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:255',
+            ],
+
+            'description' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:5000',
+            ],
+
+            'business_type' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:50',
+            ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Contact
+            |--------------------------------------------------------------------------
+            */
+
+            'phone' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:30',
+            ],
+
+            'business_phone' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:30',
+            ],
+
+            'whatsapp' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:30',
+            ],
+
+            'email' => [
+                'sometimes',
+                'nullable',
+                'email',
+                'max:255',
+            ],
+
+            'business_email' => [
+                'sometimes',
+                'nullable',
+                'email',
+                'max:255',
+            ],
+
+            'website' => [
+                'sometimes',
+                'nullable',
+                'url',
+                'max:255',
+            ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Registration
+            |--------------------------------------------------------------------------
+            */
+
+            'registration_number' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:100',
+            ],
+
+            'tin_number' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:100',
+            ],
+
+            'tax_identification_number' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:100',
+            ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Customer policies
+            |--------------------------------------------------------------------------
+            */
+
+            'return_policy' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:10000',
+            ],
+
+            'warranty_policy' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:10000',
+            ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Business address
+            |--------------------------------------------------------------------------
+            */
+
+            'address' => [
+                'sometimes',
+                'array',
+            ],
+
+            'address.country' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:100',
+            ],
+
+            'address.province' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:100',
+            ],
+
+            'address.district' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:100',
+            ],
+
+            'address.sector' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:100',
+            ],
+
+            'address.cell' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:100',
+            ],
+
+            'address.village' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:100',
+            ],
+
+            'address.address_line' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:500',
+            ],
+
+            'address.postal_code' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:50',
+            ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Branding
+            |--------------------------------------------------------------------------
+            */
+
+            'logo' => [
+                'sometimes',
+                'nullable',
+                'image',
+                'mimes:jpg,jpeg,png,webp',
+                'max:5120',
+            ],
+
+            'cover_image' => [
+                'sometimes',
+                'nullable',
+                'image',
+                'mimes:jpg,jpeg,png,webp',
+                'max:5120',
+            ],
+        ];
+    }
+}

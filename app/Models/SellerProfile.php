@@ -27,15 +27,38 @@ class SellerProfile extends Model
     protected $fillable = [
         'legal_business_name',
         'trading_name',
+
+        'logo',
+        'cover_image',
+
+        'business_type',
+
         'registration_number',
         'tax_identification_number',
+
         'business_email',
         'business_phone',
+        'whatsapp',
+
+        'country_code',
         'website',
         'description',
+
+        'return_policy',
+        'warranty_policy',
+
+        'average_rating',
+        'total_reviews',
+        'total_orders',
+        'completed_orders',
+        'response_rate',
+        'response_time',
+
         'status',
+
         'approved_at',
         'approved_by',
+
         'suspended_at',
         'suspended_by',
         'suspension_reason',
@@ -49,24 +72,52 @@ class SellerProfile extends Model
     protected function casts(): array
     {
         return [
-            'status' => SellerProfileStatus::class,
-            'approved_at' => 'datetime',
-            'suspended_at' => 'datetime',
+            'status' =>
+                SellerProfileStatus::class,
+
+            'approved_at' =>
+                'datetime',
+
+            'suspended_at' =>
+                'datetime',
+
+            'average_rating' =>
+                'decimal:2',
+
+            'total_reviews' =>
+                'integer',
+
+            'total_orders' =>
+                'integer',
+
+            'completed_orders' =>
+                'integer',
+
+            'response_rate' =>
+                'decimal:2',
+
+            'response_time' =>
+                'integer',
         ];
     }
 
     /**
-     * Generate the public identifier automatically.
+     * Generate public identifier.
      */
     protected static function booted(): void
     {
-        static::creating(function (SellerProfile $seller): void {
-            $seller->public_id ??= (string) Str::uuid();
-        });
+        static::creating(
+            function (
+                SellerProfile $seller
+            ): void {
+                $seller->public_id ??=
+                    (string) Str::uuid();
+            }
+        );
     }
 
     /**
-     * Use public_id for route model binding.
+     * Route model binding.
      */
     public function getRouteKeyName(): string
     {
@@ -78,22 +129,26 @@ class SellerProfile extends Model
      */
     public function members(): HasMany
     {
-        return $this->hasMany(SellerMember::class);
+        return $this->hasMany(
+            SellerMember::class
+        );
     }
 
     /**
-     * Users belonging to this seller business.
+     * Users belonging to seller.
      */
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(
             User::class,
             'seller_members'
-        )->withPivot([
-            'role',
-            'status',
-            'joined_at',
-        ])->withTimestamps();
+        )
+            ->withPivot([
+                'role',
+                'status',
+                'joined_at',
+            ])
+            ->withTimestamps();
     }
 
     /**
@@ -101,7 +156,9 @@ class SellerProfile extends Model
      */
     public function applications(): HasMany
     {
-        return $this->hasMany(SellerApplication::class);
+        return $this->hasMany(
+            SellerApplication::class
+        );
     }
 
     /**
@@ -109,7 +166,9 @@ class SellerProfile extends Model
      */
     public function documents(): HasMany
     {
-        return $this->hasMany(SellerDocument::class);
+        return $this->hasMany(
+            SellerDocument::class
+        );
     }
 
     /**
@@ -124,16 +183,19 @@ class SellerProfile extends Model
     }
 
     /**
-     * Products owned by this seller business.
+     * Products owned by seller.
      */
     public function products(): HasMany
     {
-        return $this->hasMany(Product::class)
-            ->orderByDesc('created_at');
+        return $this
+            ->hasMany(Product::class)
+            ->orderByDesc(
+                'created_at'
+            );
     }
 
     /**
-     * Administrator who approved this seller.
+     * Administrator who approved seller.
      */
     public function approvedBy(): BelongsTo
     {
@@ -144,7 +206,7 @@ class SellerProfile extends Model
     }
 
     /**
-     * Administrator who suspended this seller.
+     * Administrator who suspended seller.
      */
     public function suspendedBy(): BelongsTo
     {
@@ -155,10 +217,11 @@ class SellerProfile extends Model
     }
 
     /**
-     * Determine whether the seller is approved.
+     * Determine whether seller is approved.
      */
     public function isApproved(): bool
     {
-        return $this->status === SellerProfileStatus::APPROVED;
+        return $this->status ===
+            SellerProfileStatus::APPROVED;
     }
 }
