@@ -335,7 +335,6 @@ class ProductVariantPriceController extends Controller
             $createdBy = User::query()
                 ->select([
                     'id',
-                    'public_id',
                     'name',
                     'email',
                 ])
@@ -350,7 +349,6 @@ class ProductVariantPriceController extends Controller
             $updatedBy = User::query()
                 ->select([
                     'id',
-                    'public_id',
                     'name',
                     'email',
                 ])
