@@ -845,6 +845,18 @@ final class Product extends Model
     }
 
     /**
+     * Determine whether the seller may edit this product.
+     *
+     * This compatibility helper is used by seller variant, pricing
+     * and media request classes. The canonical editability rule
+     * remains centralized in canBeEdited().
+     */
+    public function canBeEditedBySeller(): bool
+    {
+        return $this->canBeEdited();
+    }
+
+    /**
      * Determine whether the product may enter moderation.
      */
     public function canBeSubmittedForReview(): bool
