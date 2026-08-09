@@ -57,7 +57,6 @@ class StockMovement extends Model
             'quantity_on_hand_after' => 'integer',
             'quantity_reserved_before' => 'integer',
             'quantity_reserved_after' => 'integer',
-            'reference_id' => 'integer',
             'metadata' => 'array',
             'created_at' => 'immutable_datetime',
         ];
@@ -68,11 +67,13 @@ class StockMovement extends Model
      */
     protected static function booted(): void
     {
-        static::creating(function (StockMovement $movement): void {
-            if (blank($movement->public_id)) {
-                $movement->public_id = (string) Str::ulid();
+        static::creating(
+            function (StockMovement $movement): void {
+                if (blank($movement->public_id)) {
+                    $movement->public_id = (string) Str::ulid();
+                }
             }
-        });
+        );
 
         static::updating(function (): never {
             throw new LogicException(
@@ -95,12 +96,29 @@ class StockMovement extends Model
         return 'public_id';
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
+
     /**
      * Product variant affected by this movement.
      */
     public function productVariant(): BelongsTo
     {
-        return $this->belongsTo(ProductVariant::class);
+        return $this->belongsTo(
+            ProductVariant::class,
+            'product_variant_id'
+        );
+    }
+
+    /**
+     * Relationship alias expected by seller resources/controllers.
+     */
+    public function variant(): BelongsTo
+    {
+        return $this->productVariant();
     }
 
     /**
@@ -108,7 +126,10 @@ class StockMovement extends Model
      */
     public function sellerProfile(): BelongsTo
     {
-        return $this->belongsTo(SellerProfile::class);
+        return $this->belongsTo(
+            SellerProfile::class,
+            'seller_profile_id'
+        );
     }
 
     /**
@@ -117,14 +138,25 @@ class StockMovement extends Model
     public function performer(): BelongsTo
     {
         return $this->belongsTo(
-            related: User::class,
-            foreignKey: 'performed_by'
+            User::class,
+            'performed_by'
         );
     }
 
     /**
-     * Limit movements to one product variant.
+     * Relationship alias expected by seller resources/controllers.
      */
+    public function performedBy(): BelongsTo
+    {
+        return $this->performer();
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Query scopes
+    |--------------------------------------------------------------------------
+    */
+
     public function scopeForVariant(
         Builder $query,
         int $productVariantId
@@ -135,9 +167,6 @@ class StockMovement extends Model
         );
     }
 
-    /**
-     * Limit movements to one seller business.
-     */
     public function scopeForSeller(
         Builder $query,
         int $sellerProfileId
@@ -148,9 +177,6 @@ class StockMovement extends Model
         );
     }
 
-    /**
-     * Limit movements to one movement type.
-     */
     public function scopeOfType(
         Builder $query,
         StockMovementType|string $type
@@ -159,97 +185,84 @@ class StockMovement extends Model
             ? $type->value
             : $type;
 
-        return $query->where('movement_type', $value);
+        return $query->where(
+            'movement_type',
+            $value
+        );
     }
 
-    /**
-     * Return movements in newest-first order.
-     */
-    public function scopeLatestFirst(Builder $query): Builder
-    {
+    public function scopeLatestFirst(
+        Builder $query
+    ): Builder {
         return $query
             ->orderByDesc('created_at')
             ->orderByDesc('id');
     }
 
-    /**
-     * Limit movements to a related record.
-     *
-     * Examples include orders, returns and purchases.
-     */
     public function scopeForReference(
         Builder $query,
         string $referenceType,
-        int $referenceId
+        int|string $referenceId
     ): Builder {
         return $query
-            ->where('reference_type', $referenceType)
-            ->where('reference_id', $referenceId);
+            ->where(
+                'reference_type',
+                $referenceType
+            )
+            ->where(
+                'reference_id',
+                $referenceId
+            );
     }
 
-    /**
-     * Return the change in physical stock.
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | Helpers
+    |--------------------------------------------------------------------------
+    */
+
     public function onHandChange(): int
     {
-        return $this->quantity_on_hand_after
-            - $this->quantity_on_hand_before;
+        return (int) $this->quantity_on_hand_after
+            - (int) $this->quantity_on_hand_before;
     }
 
-    /**
-     * Return the change in reserved stock.
-     */
     public function reservedChange(): int
     {
-        return $this->quantity_reserved_after
-            - $this->quantity_reserved_before;
+        return (int) $this->quantity_reserved_after
+            - (int) $this->quantity_reserved_before;
     }
 
-    /**
-     * Determine whether physical stock increased.
-     */
     public function increasedOnHand(): bool
     {
         return $this->onHandChange() > 0;
     }
 
-    /**
-     * Determine whether physical stock decreased.
-     */
     public function decreasedOnHand(): bool
     {
         return $this->onHandChange() < 0;
     }
 
-    /**
-     * Determine whether reserved stock changed.
-     */
     public function changedReservation(): bool
     {
         return $this->reservedChange() !== 0;
     }
 
-    /**
-     * Return the available quantity before this movement.
-     */
     public function availableBefore(): int
     {
         return max(
             0,
-            $this->quantity_on_hand_before
-                - $this->quantity_reserved_before
+            (int) $this->quantity_on_hand_before
+                - (int) $this->quantity_reserved_before
         );
     }
 
-    /**
-     * Return the available quantity after this movement.
-     */
     public function availableAfter(): int
     {
         return max(
             0,
-            $this->quantity_on_hand_after
-                - $this->quantity_reserved_after
+            (int) $this->quantity_on_hand_after
+                - (int) $this->quantity_reserved_after
         );
     }
 }

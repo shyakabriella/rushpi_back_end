@@ -20,6 +20,7 @@ use App\Http\Controllers\API\V1\Seller\ProductVariantController;
 use App\Http\Controllers\API\V1\Seller\ProductVariantPriceController;
 use App\Http\Controllers\API\V1\Seller\SellerDocumentController;
 use App\Http\Controllers\API\V1\Seller\SellerProfileController;
+use App\Http\Controllers\API\V1\Seller\StockMovementController;
 use App\Http\Controllers\API\V1\System\HealthController;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
@@ -589,17 +590,41 @@ Route::middleware('auth:sanctum')
                                 'products.variants.inventory.settings.patch'
                             );
 
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Product stock movement history
+                        |--------------------------------------------------------------------------
+                        |
+                        | StockMovement records are immutable audit records.
+                        | InventoryController changes stock; StockMovementController
+                        | exposes read-only movement history.
+                        |
+                        */
+
                         Route::get(
                             'products/{product:public_id}'
                             . '/variants/{variant:public_id}'
                             . '/inventory/movements',
                             [
-                                InventoryController::class,
-                                'movements',
+                                StockMovementController::class,
+                                'index',
                             ]
                         )
                             ->name(
                                 'products.variants.inventory.movements'
+                            );
+
+                        Route::get(
+                            'products/{product:public_id}'
+                            . '/variants/{variant:public_id}'
+                            . '/inventory/movements/{movement:public_id}',
+                            [
+                                StockMovementController::class,
+                                'show',
+                            ]
+                        )
+                            ->name(
+                                'products.variants.inventory.movements.show'
                             );
 
                         /*
