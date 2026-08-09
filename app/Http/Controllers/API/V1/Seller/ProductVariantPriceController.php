@@ -13,6 +13,7 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\ProductVariantPrice;
 use App\Models\SellerProfile;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -302,18 +303,97 @@ class ProductVariantPriceController extends Controller
     }
 
     /**
-     * Load relationships required by the seller price resource.
+     * Load the data required by SellerProductVariantPriceResource.
+     *
+     * ProductVariantPrice historically used relationship names such as
+     * productVariant(), creator() and updater(), while the seller resource
+     * expects variant, createdBy and updatedBy to be loaded.
+     *
+     * Resolve the records directly and register both relation names. This
+     * keeps the controller compatible with the current model and avoids a
+     * RelationNotFoundException if one naming convention is missing.
      */
     private function loadPriceRelations(
         ProductVariantPrice $price
     ): void {
-        $price->load([
-            'variant:id,public_id,sku,name,is_default,is_active',
+        $variant = ProductVariant::query()
+            ->select([
+                'id',
+                'public_id',
+                'sku',
+                'name',
+                'is_default',
+                'is_active',
+            ])
+            ->find(
+                $price->product_variant_id
+            );
 
-            'createdBy:id,public_id,name,email',
+        $createdBy = null;
 
-            'updatedBy:id,public_id,name,email',
-        ]);
+        if ($price->created_by !== null) {
+            $createdBy = User::query()
+                ->select([
+                    'id',
+                    'public_id',
+                    'name',
+                    'email',
+                ])
+                ->find(
+                    $price->created_by
+                );
+        }
+
+        $updatedBy = null;
+
+        if ($price->updated_by !== null) {
+            $updatedBy = User::query()
+                ->select([
+                    'id',
+                    'public_id',
+                    'name',
+                    'email',
+                ])
+                ->find(
+                    $price->updated_by
+                );
+        }
+
+        /*
+         * Names expected by SellerProductVariantPriceResource.
+         */
+        $price->setRelation(
+            'variant',
+            $variant
+        );
+
+        $price->setRelation(
+            'createdBy',
+            $createdBy
+        );
+
+        $price->setRelation(
+            'updatedBy',
+            $updatedBy
+        );
+
+        /*
+         * Keep the model's older relationship names available too.
+         */
+        $price->setRelation(
+            'productVariant',
+            $variant
+        );
+
+        $price->setRelation(
+            'creator',
+            $createdBy
+        );
+
+        $price->setRelation(
+            'updater',
+            $updatedBy
+        );
     }
 
     /**
