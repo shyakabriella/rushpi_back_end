@@ -306,7 +306,7 @@ final class ProductController extends Controller
                 'returnPolicy',
 
                 'variants' => static function (
-                    Builder $variantQuery
+                    $variantQuery
                 ): void {
                     $variantQuery
                         ->orderByDesc('is_default')
@@ -319,7 +319,7 @@ final class ProductController extends Controller
                 'variants.inventoryStock',
 
                 'media' => static function (
-                    Builder $mediaQuery
+                    $mediaQuery
                 ): void {
                     $mediaQuery
                         ->orderByDesc('is_primary')
