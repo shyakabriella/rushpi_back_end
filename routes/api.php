@@ -319,6 +319,33 @@ Route::middleware('auth:sanctum')
                         |--------------------------------------------------------------------------
                         */
 
+                        /*
+                         * Seller one-page product form options.
+                         *
+                         * IMPORTANT:
+                         * Keep this fixed route BEFORE Route::apiResource('products', ...)
+                         * so Laravel never interprets "form-options" as {product}.
+                         *
+                         * GET
+                         * /api/seller/profiles/{sellerProfile}/products/form-options
+                         *
+                         * Optional query:
+                         * ?category={category_public_id}
+                         */
+                        Route::get(
+                            'products/form-options',
+                            [
+                                ProductController::class,
+                                'formOptions',
+                            ]
+                        )
+                            ->middleware(
+                                'throttle:60,1'
+                            )
+                            ->name(
+                                'products.form-options'
+                            );
+
                         Route::apiResource(
                             'products',
                             ProductController::class
