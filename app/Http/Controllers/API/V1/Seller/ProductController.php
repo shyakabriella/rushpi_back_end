@@ -26,6 +26,238 @@ use Illuminate\Validation\ValidationException;
 final class ProductController extends Controller
 {
     /**
+     * Return the catalog data required by the seller one-page
+     * product listing form.
+     *
+     * The seller chooses the final active category directly.
+     * When a category is supplied, the response also contains
+     * that category's effective specification form definitions,
+     * including inherited parent-category specifications.
+     */
+    public function formOptions(
+        Request $request,
+        SellerProfile $sellerProfile
+    ): JsonResponse {
+        $validated = $request->validate([
+            'category' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Active sellable categories
+        |--------------------------------------------------------------------------
+        |
+        | Only active leaf categories are shown to sellers. This keeps the
+        | listing form simple: the seller selects one final category instead
+        | of navigating Department -> Category -> Subcategory.
+        |
+        */
+
+        $categories = Category::query()
+            ->where(
+                'is_active',
+                true
+            )
+            ->whereDoesntHave(
+                'children',
+                static function (
+                    Builder $query
+                ): void {
+                    $query->where(
+                        'is_active',
+                        true
+                    );
+                }
+            )
+            ->orderBy(
+                'sort_order'
+            )
+            ->orderBy(
+                'name'
+            )
+            ->get()
+            ->map(
+                static function (
+                    Category $category
+                ): array {
+                    $lineage = $category
+                        ->lineage()
+                        ->pluck(
+                            'name'
+                        )
+                        ->map(
+                            static fn (
+                                mixed $name
+                            ): string =>
+                                trim(
+                                    (string) $name
+                                )
+                        )
+                        ->filter()
+                        ->values();
+
+                    return [
+                        'public_id' =>
+                            (string) $category
+                                ->public_id,
+
+                        'name' =>
+                            (string) $category
+                                ->name,
+
+                        /*
+                         * Example:
+                         * Electronics › Computers › Laptops
+                         */
+                        'label' =>
+                            $lineage->implode(
+                                ' › '
+                            ),
+                    ];
+                }
+            )
+            ->values();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Active brands
+        |--------------------------------------------------------------------------
+        */
+
+        $brands = Brand::query()
+            ->where(
+                'is_active',
+                true
+            )
+            ->orderBy(
+                'sort_order'
+            )
+            ->orderBy(
+                'name'
+            )
+            ->get([
+                'public_id',
+                'name',
+            ])
+            ->map(
+                static function (
+                    Brand $brand
+                ): array {
+                    return [
+                        'public_id' =>
+                            (string) $brand
+                                ->public_id,
+
+                        'name' =>
+                            (string) $brand
+                                ->name,
+                    ];
+                }
+            )
+            ->values();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Specifications for selected category
+        |--------------------------------------------------------------------------
+        */
+
+        $specifications = [];
+
+        $categoryPublicId = trim(
+            (string) (
+                $validated['category']
+                ?? ''
+            )
+        );
+
+        if (
+            $categoryPublicId !== ''
+        ) {
+            $selectedCategory =
+                Category::query()
+                    ->where(
+                        'public_id',
+                        $categoryPublicId
+                    )
+                    ->where(
+                        'is_active',
+                        true
+                    )
+                    ->first();
+
+            if (
+                ! $selectedCategory
+                instanceof Category
+            ) {
+                throw ValidationException::withMessages([
+                    'category' => [
+                        'The selected category does not exist or is inactive.',
+                    ],
+                ]);
+            }
+
+            $specifications =
+                $selectedCategory
+                    ->specificationFormDefinitions();
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Seller display information
+        |--------------------------------------------------------------------------
+        */
+
+        $sellerStatus =
+            $sellerProfile->status;
+
+        if (
+            $sellerStatus
+            instanceof BackedEnum
+        ) {
+            $sellerStatus =
+                $sellerStatus->value;
+        }
+
+        return response()->json([
+            'success' => true,
+
+            'message' =>
+                'Seller product form options retrieved successfully.',
+
+            'data' => [
+                'seller_profile' => [
+                    'public_id' =>
+                        (string) $sellerProfile
+                            ->public_id,
+
+                    'name' =>
+                        $sellerProfile
+                            ->trading_name
+                        ?: $sellerProfile
+                            ->legal_business_name,
+
+                    'status' =>
+                        (string) $sellerStatus,
+                ],
+
+                'categories' =>
+                    $categories,
+
+                'brands' =>
+                    $brands,
+
+                'specifications' =>
+                    $specifications,
+            ],
+        ]);
+    }
+
+    /**
      * List products belonging to the seller profile.
      */
     public function index(
