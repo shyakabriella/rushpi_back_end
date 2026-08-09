@@ -16,9 +16,6 @@ class InventoryStock extends Model
     /**
      * Inventory fields that may be assigned safely.
      *
-     * Controllers must not update these fields directly.
-     * Inventory changes will later pass through InventoryService.
-     *
      * @var array<int, string>
      */
     protected $fillable = [
@@ -44,56 +41,75 @@ class InventoryStock extends Model
         ];
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
+
     /**
      * Product variant that owns this inventory record.
      */
     public function productVariant(): BelongsTo
     {
-        return $this->belongsTo(ProductVariant::class);
+        return $this->belongsTo(
+            ProductVariant::class,
+            'product_variant_id'
+        );
     }
 
     /**
-     * Return the quantity that is currently available.
+     * Relationship name used by seller inventory resources/controllers.
      *
-     * Available quantity is physical stock minus
-     * stock reserved for customer orders.
+     * Keep productVariant() above for backward compatibility.
+     */
+    public function variant(): BelongsTo
+    {
+        return $this->productVariant();
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Inventory helpers
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Return the quantity that is currently available.
      */
     public function availableQuantity(): int
     {
         return max(
             0,
-            $this->quantity_on_hand - $this->quantity_reserved
+            (int) $this->quantity_on_hand
+                - (int) $this->quantity_reserved
         );
     }
 
     /**
      * Determine whether the variant has available stock.
-     *
-     * Backordered variants remain sellable even when
-     * their available quantity is zero.
      */
     public function isInStock(): bool
     {
-        return $this->allow_backorder
+        return (bool) $this->allow_backorder
             || $this->availableQuantity() > 0;
     }
 
     /**
-     * Determine whether the inventory is at or below
-     * its configured reorder level.
+     * Determine whether inventory is at or below reorder level.
      */
     public function isLowStock(): bool
     {
         return $this->availableQuantity()
-            <= $this->reorder_level;
+            <= (int) $this->reorder_level;
     }
 
     /**
-     * Determine whether the inventory is completely depleted.
+     * Determine whether inventory is completely depleted.
      */
     public function isOutOfStock(): bool
     {
-        return ! $this->allow_backorder
+        return ! (bool) $this->allow_backorder
             && $this->availableQuantity() <= 0;
     }
 
@@ -106,7 +122,7 @@ class InventoryStock extends Model
             return false;
         }
 
-        if ($this->allow_backorder) {
+        if ((bool) $this->allow_backorder) {
             return true;
         }
 
@@ -137,9 +153,12 @@ class InventoryStock extends Model
         return 'in_stock';
     }
 
-    /**
-     * Limit results to inventory with available stock.
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | Query scopes
+    |--------------------------------------------------------------------------
+    */
+
     public function scopeInStock(Builder $query): Builder
     {
         return $query->where(
@@ -155,9 +174,6 @@ class InventoryStock extends Model
         );
     }
 
-    /**
-     * Limit results to inventory without available stock.
-     */
     public function scopeOutOfStock(Builder $query): Builder
     {
         return $query
@@ -169,9 +185,6 @@ class InventoryStock extends Model
             );
     }
 
-    /**
-     * Limit inventory to one product variant.
-     */
     public function scopeForVariant(
         Builder $query,
         int $productVariantId

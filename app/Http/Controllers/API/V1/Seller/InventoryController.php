@@ -409,7 +409,7 @@ class InventoryController extends Controller
 
                 'sellerProfile:id,public_id,legal_business_name,trading_name',
 
-                'performedBy:id,public_id,name,email',
+                'performedBy:id,name,email',
             ]);
 
         if (! empty($validated['movement_type'])) {
@@ -553,7 +553,7 @@ class InventoryController extends Controller
 
             'sellerProfile:id,public_id,legal_business_name,trading_name',
 
-            'performedBy:id,public_id,name,email',
+            'performedBy:id,name,email',
         ]);
     }
 
