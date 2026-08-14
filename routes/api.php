@@ -10,6 +10,7 @@ use App\Http\Controllers\API\V1\Admin\CommissionRuleController;
 use App\Http\Controllers\API\V1\Admin\DepartmentController;
 use App\Http\Controllers\API\V1\Admin\ProductModerationController;
 use App\Http\Controllers\API\V1\Admin\SellerVerificationController;
+use App\Http\Controllers\API\V1\Admin\ServiceController;
 use App\Http\Controllers\API\V1\Admin\SpecificationDefinitionController;
 use App\Http\Controllers\API\V1\Public\CatalogController;
 use App\Http\Controllers\API\V1\Seller\InventoryController;
@@ -1029,6 +1030,46 @@ Route::middleware('auth:sanctum')
                         'brand',
                 ]);
 
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Paint / service management
+                |--------------------------------------------------------------------------
+                |
+                | Admin manages paint services used for measured selling.
+                |
+                | GET    /api/admin/services
+                | POST   /api/admin/services
+                | GET    /api/admin/services/{service}
+                | PUT    /api/admin/services/{service}
+                | PATCH  /api/admin/services/{service}
+                | DELETE /api/admin/services/{service}
+                | POST   /api/admin/services/{service}/quote
+                |
+                */
+
+                Route::post(
+                    'services/{service:public_id}/quote',
+                    [
+                        ServiceController::class,
+                        'quote',
+                    ]
+                )
+                    ->middleware(
+                        'throttle:60,1'
+                    )
+                    ->name(
+                        'services.quote'
+                    );
+
+                Route::apiResource(
+                    'services',
+                    ServiceController::class
+                )->parameters([
+                    'services' =>
+                        'service',
+                ]);
 
                 /*
                 |--------------------------------------------------------------------------
