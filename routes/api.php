@@ -206,6 +206,94 @@ Route::middleware('auth:sanctum')
 
         /*
         |--------------------------------------------------------------------------
+        | Mobile customer orders
+        |--------------------------------------------------------------------------
+        |
+        | Primary NTEZINET mobile routes:
+        |
+        | GET  /api/orders
+        | POST /api/orders
+        | GET  /api/orders/{serviceOrder}
+        | POST /api/orders/{serviceOrder}/cancel
+        |
+        | These routes use the same ServiceOrderController as the
+        | original /api/customer/service-orders endpoints.
+        |
+        */
+
+        Route::prefix('orders')
+            ->middleware(
+                RoleMiddleware::class
+                . ':customer'
+            )
+            ->name('api.orders.')
+            ->group(function (): void {
+
+                /*
+                 * Customer order history.
+                 *
+                 * GET /api/orders
+                 */
+                Route::get(
+                    '/',
+                    [
+                        ServiceOrderController::class,
+                        'index',
+                    ]
+                )
+                    ->name('index');
+
+                /*
+                 * Create a new paint order.
+                 *
+                 * POST /api/orders
+                 */
+                Route::post(
+                    '/',
+                    [
+                        ServiceOrderController::class,
+                        'store',
+                    ]
+                )
+                    ->middleware(
+                        'throttle:30,1'
+                    )
+                    ->name('store');
+
+                /*
+                 * Cancel an order.
+                 *
+                 * POST /api/orders/{public_id}/cancel
+                 */
+                Route::post(
+                    '{serviceOrder:public_id}/cancel',
+                    [
+                        ServiceOrderController::class,
+                        'cancel',
+                    ]
+                )
+                    ->middleware(
+                        'throttle:20,1'
+                    )
+                    ->name('cancel');
+
+                /*
+                 * View a single order.
+                 *
+                 * GET /api/orders/{public_id}
+                 */
+                Route::get(
+                    '{serviceOrder:public_id}',
+                    [
+                        ServiceOrderController::class,
+                        'show',
+                    ]
+                )
+                    ->name('show');
+            });
+
+        /*
+        |--------------------------------------------------------------------------
         | Customer paint / service orders
         |--------------------------------------------------------------------------
         |
