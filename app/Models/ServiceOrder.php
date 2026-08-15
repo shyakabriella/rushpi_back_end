@@ -7,6 +7,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 class ServiceOrder extends Model
@@ -37,6 +38,10 @@ class ServiceOrder extends Model
         'customer_name',
         'customer_phone',
 
+        /*
+         * Legacy first-item snapshot.
+         * Kept for backward compatibility.
+         */
         'service_id',
         'service_name',
 
@@ -60,11 +65,33 @@ class ServiceOrder extends Model
 
         'total_price_rwf',
 
-        'status',
-        'payment_status',
+        /*
+         * Multi-item checkout.
+         */
+        'item_count',
+        'subtotal_amount_rwf',
+
+        'delivery_method',
+        'delivery_fee_rwf',
+
+        'total_amount_rwf',
 
         'delivery_address',
+        'delivery_latitude',
+        'delivery_longitude',
+
+        'delivery_city',
+        'delivery_district',
+        'delivery_region',
+        'delivery_country',
+
+        'is_kigali',
+        'location_note',
+
         'customer_note',
+
+        'status',
+        'payment_status',
 
         'confirmed_at',
         'completed_at',
@@ -111,6 +138,24 @@ class ServiceOrder extends Model
         'total_price_rwf' =>
             'decimal:2',
 
+        'subtotal_amount_rwf' =>
+            'decimal:2',
+
+        'delivery_fee_rwf' =>
+            'decimal:2',
+
+        'total_amount_rwf' =>
+            'decimal:2',
+
+        'delivery_latitude' =>
+            'decimal:7',
+
+        'delivery_longitude' =>
+            'decimal:7',
+
+        'is_kigali' =>
+            'boolean',
+
         'confirmed_at' =>
             'datetime',
 
@@ -152,10 +197,20 @@ class ServiceOrder extends Model
         );
     }
 
+    /*
+     * Legacy relation.
+     */
     public function service(): BelongsTo
     {
         return $this->belongsTo(
             Service::class
+        );
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(
+            ServiceOrderItem::class
         );
     }
 

@@ -16,31 +16,53 @@ use Throwable;
 
 class ServiceOrderController extends Controller
 {
-    /**
-     * Customer's paint orders.
-     */
+    private const DELIVERY_PICKUP =
+        'pickup_self';
+
+    private const DELIVERY_OWN_MOTO =
+        'own_moto';
+
+    private const DELIVERY_NTEZINET_MOTO =
+        'ntezinet_moto';
+
+    private const KIGALI_DELIVERY_FEE =
+        2000.0;
+
     public function index(
         Request $request
     ): JsonResponse {
-        $orders = ServiceOrder::query()
-            ->with('service')
-            ->where(
-                'user_id',
-                $request->user()->id
-            )
-            ->latest('id')
-            ->paginate(
-                min(
-                    max(
-                        (int) $request->input(
-                            'per_page',
-                            20
-                        ),
-                        1
-                    ),
-                    100
+        $orders =
+            ServiceOrder::query()
+                ->with([
+                    'service',
+                    'items.service',
+                ])
+                ->where(
+                    'user_id',
+                    $request->user()->id
                 )
-            );
+                ->latest('id')
+                ->paginate(
+                    min(
+                        max(
+                            (int) $request->input(
+                                'per_page',
+                                20
+                            ),
+                            1
+                        ),
+                        100
+                    )
+                );
+
+        $orders->through(
+            fn (
+                ServiceOrder $order
+            ): array =>
+                $this->orderData(
+                    $order
+                )
+        );
 
         return response()->json([
             'success' => true,
@@ -48,227 +70,375 @@ class ServiceOrderController extends Controller
         ]);
     }
 
-    /**
-     * Create paint order.
-     */
     public function store(
         Request $request
     ): JsonResponse {
-        $data = $request->validate([
-            'service_public_id' => [
-                'required',
-                'uuid',
-                'exists:services,public_id',
-            ],
+        $data =
+            $request->validate([
+                'items' => [
+                    'required',
+                    'array',
+                    'min:1',
+                    'max:50',
+                ],
 
-            'mode' => [
-                'required',
-                Rule::in([
-                    ServiceOrder::MODE_VOLUME,
-                    ServiceOrder::MODE_WEIGHT,
-                    ServiceOrder::MODE_AMOUNT,
-                ]),
-            ],
+                'items.*.service_public_id' => [
+                    'required',
+                    'uuid',
+                    'exists:services,public_id',
+                ],
 
-            'quantity' => [
-                'nullable',
-                'numeric',
-                'gt:0',
-            ],
+                'items.*.mode' => [
+                    'required',
+                    Rule::in([
+                        ServiceOrder::MODE_VOLUME,
+                        ServiceOrder::MODE_WEIGHT,
+                        ServiceOrder::MODE_AMOUNT,
+                    ]),
+                ],
 
-            'unit' => [
-                'required',
-                Rule::in(
-                    Service::UNITS
-                ),
-            ],
+                'items.*.quantity' => [
+                    'nullable',
+                    'numeric',
+                    'gt:0',
+                ],
 
-            'amount_rwf' => [
-                'nullable',
-                'numeric',
-                'gt:0',
-            ],
+                'items.*.unit' => [
+                    'required',
+                    Rule::in(
+                        Service::UNITS
+                    ),
+                ],
 
-            'delivery_address' => [
-                'nullable',
-                'string',
-                'max:2000',
-            ],
+                'items.*.amount_rwf' => [
+                    'nullable',
+                    'numeric',
+                    'gt:0',
+                ],
 
-            'customer_note' => [
-                'nullable',
-                'string',
-                'max:2000',
-            ],
-        ]);
+                'delivery_method' => [
+                    'nullable',
+                    Rule::in([
+                        self::DELIVERY_PICKUP,
+                        self::DELIVERY_OWN_MOTO,
+                        self::DELIVERY_NTEZINET_MOTO,
+                    ]),
+                ],
+
+                'delivery_address' => [
+                    'nullable',
+                    'string',
+                    'max:2000',
+                ],
+
+                'delivery_latitude' => [
+                    'nullable',
+                    'numeric',
+                    'between:-90,90',
+                ],
+
+                'delivery_longitude' => [
+                    'nullable',
+                    'numeric',
+                    'between:-180,180',
+                ],
+
+                'delivery_city' => [
+                    'nullable',
+                    'string',
+                    'max:150',
+                ],
+
+                'delivery_district' => [
+                    'nullable',
+                    'string',
+                    'max:150',
+                ],
+
+                'delivery_region' => [
+                    'nullable',
+                    'string',
+                    'max:150',
+                ],
+
+                'delivery_country' => [
+                    'nullable',
+                    'string',
+                    'max:150',
+                ],
+
+                'is_kigali' => [
+                    'nullable',
+                    'boolean',
+                ],
+
+                'location_note' => [
+                    'nullable',
+                    'string',
+                    'max:1000',
+                ],
+
+                'customer_note' => [
+                    'nullable',
+                    'string',
+                    'max:2000',
+                ],
+            ]);
+
+        foreach (
+            $data['items']
+            as $index => $item
+        ) {
+            if (
+                $item['mode'] ===
+                    ServiceOrder::MODE_AMOUNT
+                &&
+                empty(
+                    $item['amount_rwf']
+                )
+            ) {
+                return $this->validationError(
+                    "items.{$index}.amount_rwf",
+                    'Amount is required when ordering by money.'
+                );
+            }
+
+            if (
+                $item['mode'] !==
+                    ServiceOrder::MODE_AMOUNT
+                &&
+                empty(
+                    $item['quantity']
+                )
+            ) {
+                return $this->validationError(
+                    "items.{$index}.quantity",
+                    'Quantity is required.'
+                );
+            }
+        }
+
+        $deliveryMethod =
+            $data['delivery_method']
+            ?? self::DELIVERY_PICKUP;
 
         if (
-            $data['mode'] !==
-                ServiceOrder::MODE_AMOUNT &&
-            empty($data['quantity'])
+            $deliveryMethod !==
+                self::DELIVERY_PICKUP
+            &&
+            (
+                empty(
+                    $data[
+                        'delivery_address'
+                    ]
+                )
+                ||
+                ! array_key_exists(
+                    'delivery_latitude',
+                    $data
+                )
+                ||
+                ! array_key_exists(
+                    'delivery_longitude',
+                    $data
+                )
+            )
         ) {
             return $this->validationError(
-                'quantity',
-                'Quantity is required.'
+                'delivery_address',
+                'GPS location and delivery address are required for delivery.'
             );
         }
 
         if (
-            $data['mode'] ===
-                ServiceOrder::MODE_AMOUNT &&
-            empty($data['amount_rwf'])
+            $deliveryMethod ===
+                self::DELIVERY_NTEZINET_MOTO
+            &&
+            ! (
+                $data['is_kigali']
+                ?? false
+            )
         ) {
             return $this->validationError(
-                'amount_rwf',
-                'Amount is required.'
+                'is_kigali',
+                'NTEZINET Moto delivery is currently available only inside Kigali.'
             );
         }
+
+        $deliveryFee =
+            $deliveryMethod ===
+                self::DELIVERY_NTEZINET_MOTO
+                ? self::KIGALI_DELIVERY_FEE
+                : 0.0;
 
         try {
-            $order = DB::transaction(
-                function () use (
-                    $request,
-                    $data
-                ): ServiceOrder {
-                    $service = Service::query()
-                        ->where(
-                            'public_id',
-                            $data[
-                                'service_public_id'
-                            ]
-                        )
-                        ->lockForUpdate()
-                        ->firstOrFail();
+            $order =
+                DB::transaction(
+                    function () use (
+                        $request,
+                        $data,
+                        $deliveryMethod,
+                        $deliveryFee
+                    ): ServiceOrder {
+                        $preparedItems = [];
 
-                    $this->ensureAvailable(
-                        $service
-                    );
+                        $subtotal = 0.0;
 
-                    $this->validateSaleMode(
-                        $service,
-                        $data['mode'],
-                        $data['unit']
-                    );
+                        foreach (
+                            $data['items']
+                            as $item
+                        ) {
+                            $service =
+                                Service::query()
+                                    ->where(
+                                        'public_id',
+                                        $item[
+                                            'service_public_id'
+                                        ]
+                                    )
+                                    ->lockForUpdate()
+                                    ->firstOrFail();
 
-                    $quote =
-                        $this->calculateQuote(
-                            $service,
-                            $data
-                        );
-
-                    $orderedQuantity =
-                        $data['mode'] ===
-                        ServiceOrder::MODE_AMOUNT
-                            ? (float) $quote[
-                                'quantity'
-                            ]
-                            : (float) $data[
-                                'quantity'
-                            ];
-
-                    $stockDeduction =
-                        $service
-                            ->convertQuantity(
-                                $orderedQuantity,
-                                $data['unit'],
-                                $service->stock_unit
+                            $this->ensureAvailable(
+                                $service
                             );
 
-                    if (
-                        $stockDeduction <= 0
-                    ) {
-                        throw new InvalidArgumentException(
-                            'Invalid stock quantity.'
-                        );
-                    }
+                            $mode =
+                                $item['mode'];
 
-                    if (
-                        $stockDeduction >
-                        (float) $service
-                            ->stock_quantity
-                    ) {
-                        throw new InvalidArgumentException(
-                            'Requested paint quantity is greater than available stock.'
-                        );
-                    }
+                            $unit =
+                                strtolower(
+                                    trim(
+                                        $item['unit']
+                                    )
+                                );
 
-                    $total =
-                        $data['mode'] ===
-                        ServiceOrder::MODE_AMOUNT
-                            ? (float) $data[
-                                'amount_rwf'
-                            ]
-                            : (float) (
-                                $quote[
-                                    'price_rwf'
-                                ] ?? 0
+                            $this->validateSaleMode(
+                                $service,
+                                $mode,
+                                $unit
                             );
 
-                    if ($total <= 0) {
-                        throw new InvalidArgumentException(
-                            'Invalid order price.'
-                        );
-                    }
+                            if (
+                                $mode ===
+                                ServiceOrder::MODE_AMOUNT
+                            ) {
+                                $amount =
+                                    (float) $item[
+                                        'amount_rwf'
+                                    ];
 
-                    $user =
-                        $request->user();
+                                $orderedQuantity =
+                                    $service
+                                        ->quantityForAmount(
+                                            $amount,
+                                            $unit
+                                        );
 
-                    $order =
-                        ServiceOrder::query()
-                            ->create([
-                                'user_id' =>
-                                    $user->id,
+                                $lineTotal =
+                                    $amount;
+                            } else {
+                                $orderedQuantity =
+                                    (float) $item[
+                                        'quantity'
+                                    ];
 
-                                'customer_name' =>
-                                    $user->name
-                                    ?? 'Customer',
+                                $lineTotal =
+                                    $service
+                                        ->priceFor(
+                                            $orderedQuantity,
+                                            $unit
+                                        );
+                            }
 
-                                'customer_phone' =>
-                                    $user->phone
-                                    ?? null,
+                            if (
+                                $orderedQuantity <= 0
+                                ||
+                                $lineTotal <= 0
+                            ) {
+                                throw new InvalidArgumentException(
+                                    'Invalid paint order quantity or price.'
+                                );
+                            }
 
+                            $stockDeduction =
+                                $service
+                                    ->convertQuantity(
+                                        $orderedQuantity,
+                                        $unit,
+                                        $service
+                                            ->stock_unit
+                                    );
+
+                            if (
+                                $stockDeduction <= 0
+                            ) {
+                                throw new InvalidArgumentException(
+                                    'Invalid stock quantity.'
+                                );
+                            }
+
+                            if (
+                                $stockDeduction >
+                                (float) $service
+                                    ->stock_quantity
+                            ) {
+                                throw new InvalidArgumentException(
+                                    sprintf(
+                                        '%s does not have enough stock.',
+                                        $service->name
+                                    )
+                                );
+                            }
+
+                            $equivalents =
+                                $this->equivalents(
+                                    $service,
+                                    $orderedQuantity,
+                                    $unit
+                                );
+
+                            $preparedItems[] = [
                                 'service_id' =>
                                     $service->id,
 
                                 'service_name' =>
                                     $service->name,
 
+                                'paint_type' =>
+                                    $service
+                                        ->paint_type,
+
+                                'color_name' =>
+                                    $service
+                                        ->color_name,
+
                                 'order_mode' =>
-                                    $data['mode'],
+                                    $mode,
 
                                 'requested_quantity' =>
                                     $orderedQuantity,
 
                                 'requested_unit' =>
-                                    $data['unit'],
+                                    $unit,
 
                                 'requested_amount_rwf' =>
-                                    $data['mode'] ===
+                                    $mode ===
                                     ServiceOrder::MODE_AMOUNT
-                                        ? $data[
-                                            'amount_rwf'
-                                        ]
+                                        ? $lineTotal
                                         : null,
 
                                 'equivalent_ml' =>
-                                    $quote[
-                                        'equivalent_ml'
-                                    ] ?? null,
+                                    $equivalents['ml'],
 
                                 'equivalent_l' =>
-                                    $quote[
-                                        'equivalent_l'
-                                    ] ?? null,
+                                    $equivalents['l'],
 
                                 'equivalent_g' =>
-                                    $quote[
-                                        'equivalent_g'
-                                    ] ?? null,
+                                    $equivalents['g'],
 
                                 'equivalent_kg' =>
-                                    $quote[
-                                        'equivalent_kg'
-                                    ] ?? null,
+                                    $equivalents['kg'],
 
                                 'reference_quantity' =>
                                     $service
@@ -293,53 +463,274 @@ class ServiceOrderController extends Controller
                                     $service
                                         ->stock_unit,
 
-                                'total_price_rwf' =>
-                                    $total,
+                                'line_total_rwf' =>
+                                    round(
+                                        $lineTotal,
+                                        2
+                                    ),
+                            ];
 
-                                'status' =>
-                                    ServiceOrder::
-                                    STATUS_PENDING,
-
-                                'payment_status' =>
-                                    ServiceOrder::
-                                    PAYMENT_UNPAID,
-
-                                'delivery_address' =>
-                                    $data[
-                                        'delivery_address'
-                                    ] ?? null,
-
-                                'customer_note' =>
-                                    $data[
-                                        'customer_note'
-                                    ] ?? null,
+                            /*
+                             * Reserve stock immediately.
+                             * The entire operation is inside
+                             * one DB transaction.
+                             */
+                            $service->update([
+                                'stock_quantity' =>
+                                    max(
+                                        0,
+                                        (float) $service
+                                            ->stock_quantity
+                                        - $stockDeduction
+                                    ),
                             ]);
 
-                    /*
-                     * Reserve/deduct stock immediately.
-                     */
-                    $service->update([
-                        'stock_quantity' =>
-                            max(
-                                0,
-                                (float) $service
-                                    ->stock_quantity
-                                - $stockDeduction
-                            ),
-                    ]);
+                            $subtotal +=
+                                $lineTotal;
+                        }
 
-                    return $order;
-                }
-            );
+                        if (
+                            count(
+                                $preparedItems
+                            ) === 0
+                        ) {
+                            throw new InvalidArgumentException(
+                                'The order does not contain any paint items.'
+                            );
+                        }
+
+                        $subtotal =
+                            round(
+                                $subtotal,
+                                2
+                            );
+
+                        $grandTotal =
+                            round(
+                                $subtotal
+                                + $deliveryFee,
+                                2
+                            );
+
+                        $first =
+                            $preparedItems[0];
+
+                        $user =
+                            $request->user();
+
+                        /*
+                         * Legacy paint columns are
+                         * populated using the first line.
+                         *
+                         * New code uses items().
+                         */
+                        $order =
+                            ServiceOrder::query()
+                                ->create([
+                                    'user_id' =>
+                                        $user->id,
+
+                                    'customer_name' =>
+                                        $user->name
+                                        ?? 'Customer',
+
+                                    'customer_phone' =>
+                                        $user->phone
+                                        ?? null,
+
+                                    'service_id' =>
+                                        $first[
+                                            'service_id'
+                                        ],
+
+                                    'service_name' =>
+                                        $first[
+                                            'service_name'
+                                        ],
+
+                                    'order_mode' =>
+                                        $first[
+                                            'order_mode'
+                                        ],
+
+                                    'requested_quantity' =>
+                                        $first[
+                                            'requested_quantity'
+                                        ],
+
+                                    'requested_unit' =>
+                                        $first[
+                                            'requested_unit'
+                                        ],
+
+                                    'requested_amount_rwf' =>
+                                        $first[
+                                            'requested_amount_rwf'
+                                        ],
+
+                                    'equivalent_ml' =>
+                                        $first[
+                                            'equivalent_ml'
+                                        ],
+
+                                    'equivalent_l' =>
+                                        $first[
+                                            'equivalent_l'
+                                        ],
+
+                                    'equivalent_g' =>
+                                        $first[
+                                            'equivalent_g'
+                                        ],
+
+                                    'equivalent_kg' =>
+                                        $first[
+                                            'equivalent_kg'
+                                        ],
+
+                                    'reference_quantity' =>
+                                        $first[
+                                            'reference_quantity'
+                                        ],
+
+                                    'reference_unit' =>
+                                        $first[
+                                            'reference_unit'
+                                        ],
+
+                                    'reference_price_rwf' =>
+                                        $first[
+                                            'reference_price_rwf'
+                                        ],
+
+                                    'density_kg_per_l' =>
+                                        $first[
+                                            'density_kg_per_l'
+                                        ],
+
+                                    'stock_quantity_deducted' =>
+                                        $first[
+                                            'stock_quantity_deducted'
+                                        ],
+
+                                    'stock_unit' =>
+                                        $first[
+                                            'stock_unit'
+                                        ],
+
+                                    /*
+                                     * Keep old clients useful:
+                                     * parent total_price_rwf is
+                                     * now the whole checkout total.
+                                     */
+                                    'total_price_rwf' =>
+                                        $grandTotal,
+
+                                    'item_count' =>
+                                        count(
+                                            $preparedItems
+                                        ),
+
+                                    'subtotal_amount_rwf' =>
+                                        $subtotal,
+
+                                    'delivery_method' =>
+                                        $deliveryMethod,
+
+                                    'delivery_fee_rwf' =>
+                                        $deliveryFee,
+
+                                    'total_amount_rwf' =>
+                                        $grandTotal,
+
+                                    'delivery_address' =>
+                                        $data[
+                                            'delivery_address'
+                                        ] ?? null,
+
+                                    'delivery_latitude' =>
+                                        $data[
+                                            'delivery_latitude'
+                                        ] ?? null,
+
+                                    'delivery_longitude' =>
+                                        $data[
+                                            'delivery_longitude'
+                                        ] ?? null,
+
+                                    'delivery_city' =>
+                                        $data[
+                                            'delivery_city'
+                                        ] ?? null,
+
+                                    'delivery_district' =>
+                                        $data[
+                                            'delivery_district'
+                                        ] ?? null,
+
+                                    'delivery_region' =>
+                                        $data[
+                                            'delivery_region'
+                                        ] ?? null,
+
+                                    'delivery_country' =>
+                                        $data[
+                                            'delivery_country'
+                                        ] ?? null,
+
+                                    'is_kigali' =>
+                                        $data[
+                                            'is_kigali'
+                                        ] ?? null,
+
+                                    'location_note' =>
+                                        $data[
+                                            'location_note'
+                                        ] ?? null,
+
+                                    'customer_note' =>
+                                        $data[
+                                            'customer_note'
+                                        ] ?? null,
+
+                                    'status' =>
+                                        ServiceOrder::
+                                        STATUS_PENDING,
+
+                                    'payment_status' =>
+                                        ServiceOrder::
+                                        PAYMENT_UNPAID,
+                                ]);
+
+                        foreach (
+                            $preparedItems
+                            as $preparedItem
+                        ) {
+                            $order
+                                ->items()
+                                ->create(
+                                    $preparedItem
+                                );
+                        }
+
+                        return $order
+                            ->load([
+                                'service',
+                                'items.service',
+                            ]);
+                    }
+                );
 
             return response()->json(
                 [
                     'success' => true,
+
                     'message' =>
                         'Paint order created successfully.',
+
                     'data' =>
-                        $order->load(
-                            'service'
+                        $this->orderData(
+                            $order
                         ),
                 ],
                 201
@@ -350,18 +741,24 @@ class ServiceOrderController extends Controller
             return response()->json(
                 [
                     'success' => false,
+
                     'message' =>
                         $exception
                             ->getMessage(),
                 ],
                 422
             );
-        } catch (Throwable $exception) {
-            report($exception);
+        } catch (
+            Throwable $exception
+        ) {
+            report(
+                $exception
+            );
 
             return response()->json(
                 [
                     'success' => false,
+
                     'message' =>
                         'Unable to create paint order.',
                 ],
@@ -370,9 +767,6 @@ class ServiceOrderController extends Controller
         }
     }
 
-    /**
-     * Show one customer order.
-     */
     public function show(
         Request $request,
         ServiceOrder $serviceOrder
@@ -383,20 +777,21 @@ class ServiceOrderController extends Controller
             404
         );
 
+        $serviceOrder->load([
+            'service',
+            'items.service',
+        ]);
+
         return response()->json([
             'success' => true,
+
             'data' =>
-                $serviceOrder->load(
-                    'service'
+                $this->orderData(
+                    $serviceOrder
                 ),
         ]);
     }
 
-    /**
-     * Customer cancels a pending order.
-     *
-     * Stock is returned.
-     */
     public function cancel(
         Request $request,
         ServiceOrder $serviceOrder
@@ -408,73 +803,122 @@ class ServiceOrderController extends Controller
         );
 
         try {
-            $order = DB::transaction(
-                function () use (
-                    $serviceOrder
-                ): ServiceOrder {
-                    $order =
-                        ServiceOrder::query()
-                            ->whereKey(
-                                $serviceOrder->id
+            $order =
+                DB::transaction(
+                    function () use (
+                        $serviceOrder
+                    ): ServiceOrder {
+                        $order =
+                            ServiceOrder::query()
+                                ->whereKey(
+                                    $serviceOrder->id
+                                )
+                                ->with('items')
+                                ->lockForUpdate()
+                                ->firstOrFail();
+
+                        if (
+                            ! in_array(
+                                $order->status,
+                                [
+                                    ServiceOrder::
+                                    STATUS_PENDING,
+
+                                    ServiceOrder::
+                                    STATUS_CONFIRMED,
+                                ],
+                                true
                             )
-                            ->lockForUpdate()
-                            ->firstOrFail();
+                        ) {
+                            throw new InvalidArgumentException(
+                                'This order can no longer be cancelled.'
+                            );
+                        }
 
-                    if (
-                        ! in_array(
-                            $order->status,
-                            [
+                        if (
+                            $order->items
+                                ->isNotEmpty()
+                        ) {
+                            foreach (
+                                $order->items
+                                as $item
+                            ) {
+                                $service =
+                                    Service::query()
+                                        ->whereKey(
+                                            $item
+                                                ->service_id
+                                        )
+                                        ->lockForUpdate()
+                                        ->first();
+
+                                if (
+                                    ! $service
+                                ) {
+                                    continue;
+                                }
+
+                                $service->update([
+                                    'stock_quantity' =>
+                                        (float) $service
+                                            ->stock_quantity
+                                        +
+                                        (float) $item
+                                            ->stock_quantity_deducted,
+                                ]);
+                            }
+                        } else {
+                            /*
+                             * Old single-paint orders.
+                             */
+                            $service =
+                                Service::query()
+                                    ->whereKey(
+                                        $order
+                                            ->service_id
+                                    )
+                                    ->lockForUpdate()
+                                    ->first();
+
+                            if ($service) {
+                                $service->update([
+                                    'stock_quantity' =>
+                                        (float) $service
+                                            ->stock_quantity
+                                        +
+                                        (float) $order
+                                            ->stock_quantity_deducted,
+                                ]);
+                            }
+                        }
+
+                        $order->update([
+                            'status' =>
                                 ServiceOrder::
-                                STATUS_PENDING,
+                                STATUS_CANCELLED,
 
-                                ServiceOrder::
-                                STATUS_CONFIRMED,
-                            ],
-                            true
-                        )
-                    ) {
-                        throw new InvalidArgumentException(
-                            'This order can no longer be cancelled.'
-                        );
-                    }
-
-                    $service =
-                        Service::query()
-                            ->whereKey(
-                                $order->service_id
-                            )
-                            ->lockForUpdate()
-                            ->first();
-
-                    if ($service) {
-                        $service->update([
-                            'stock_quantity' =>
-                                (float) $service
-                                    ->stock_quantity
-                                +
-                                (float) $order
-                                    ->stock_quantity_deducted,
+                            'cancelled_at' =>
+                                now(),
                         ]);
+
+                        return $order
+                            ->load([
+                                'service',
+                                'items.service',
+                            ]);
                     }
-
-                    $order->update([
-                        'status' =>
-                            ServiceOrder::
-                            STATUS_CANCELLED,
-
-                        'cancelled_at' =>
-                            now(),
-                    ]);
-
-                    return $order;
-                }
-            );
+                );
 
             return response()->json([
                 'success' => true,
+
                 'message' =>
                     'Order cancelled successfully.',
-                'data' => $order,
+
+                'data' =>
+                    $this->orderData(
+                        $order
+                    ),
             ]);
         } catch (
             InvalidArgumentException $exception
@@ -482,6 +926,7 @@ class ServiceOrderController extends Controller
             return response()->json(
                 [
                     'success' => false,
+
                     'message' =>
                         $exception
                             ->getMessage(),
@@ -496,8 +941,10 @@ class ServiceOrderController extends Controller
     ): void {
         if (
             $service->service_type !==
-                'paint' ||
-            ! $service->is_active ||
+                'paint'
+            ||
+            ! $service->is_active
+            ||
             $service->status !==
                 'active'
         ) {
@@ -601,7 +1048,8 @@ class ServiceOrderController extends Controller
                     $unit,
                     $volumeUnits,
                     true
-                ) &&
+                )
+                &&
                 ! $service
                     ->allow_volume_sale
             ) {
@@ -615,7 +1063,8 @@ class ServiceOrderController extends Controller
                     $unit,
                     $weightUnits,
                     true
-                ) &&
+                )
+                &&
                 ! $service
                     ->allow_weight_sale
             ) {
@@ -626,28 +1075,70 @@ class ServiceOrderController extends Controller
         }
     }
 
-    private function calculateQuote(
+    /**
+     * Return all useful equivalents.
+     */
+    private function equivalents(
         Service $service,
-        array $data
+        float $quantity,
+        string $unit
     ): array {
-        if (
-            $data['mode'] ===
-            ServiceOrder::MODE_AMOUNT
-        ) {
-            return $service->quoteAmount(
-                (float) $data[
-                    'amount_rwf'
-                ],
-                $data['unit']
-            );
-        }
+        return [
+            'ml' =>
+                $this->convertOrNull(
+                    $service,
+                    $quantity,
+                    $unit,
+                    'ml'
+                ),
 
-        return $service->quote(
-            (float) $data[
-                'quantity'
-            ],
-            $data['unit']
-        );
+            'l' =>
+                $this->convertOrNull(
+                    $service,
+                    $quantity,
+                    $unit,
+                    'l'
+                ),
+
+            'g' =>
+                $this->convertOrNull(
+                    $service,
+                    $quantity,
+                    $unit,
+                    'g'
+                ),
+
+            'kg' =>
+                $this->convertOrNull(
+                    $service,
+                    $quantity,
+                    $unit,
+                    'kg'
+                ),
+        ];
+    }
+
+    private function convertOrNull(
+        Service $service,
+        float $quantity,
+        string $fromUnit,
+        string $toUnit
+    ): ?float {
+        try {
+            return round(
+                $service
+                    ->convertQuantity(
+                        $quantity,
+                        $fromUnit,
+                        $toUnit
+                    ),
+                6
+            );
+        } catch (
+            InvalidArgumentException
+        ) {
+            return null;
+        }
     }
 
     private function validationError(
@@ -656,9 +1147,9 @@ class ServiceOrderController extends Controller
     ): JsonResponse {
         return response()->json(
             [
-                'success' => false,
                 'message' =>
-                    'Validation Error.',
+                    'The given data was invalid.',
+
                 'errors' => [
                     $field => [
                         $message,
@@ -667,5 +1158,326 @@ class ServiceOrderController extends Controller
             ],
             422
         );
+    }
+
+    private function orderData(
+        ServiceOrder $order
+    ): array {
+        $total =
+            (float) (
+                $order
+                    ->total_amount_rwf
+                ??
+                $order
+                    ->total_price_rwf
+                ??
+                0
+            );
+
+        $subtotal =
+            (float) (
+                $order
+                    ->subtotal_amount_rwf
+                ??
+                $order
+                    ->total_price_rwf
+                ??
+                0
+            );
+
+        $items =
+            $order->items
+                ->map(
+                    function ($item): array {
+                        return [
+                            'public_id' =>
+                                (string) $item
+                                    ->public_id,
+
+                            'service_public_id' =>
+                                $item
+                                    ->service
+                                    ? (string) $item
+                                        ->service
+                                        ->public_id
+                                    : null,
+
+                            'service_name' =>
+                                $item
+                                    ->service_name,
+
+                            'name' =>
+                                $item
+                                    ->service_name,
+
+                            'paint_type' =>
+                                $item
+                                    ->paint_type,
+
+                            'color_name' =>
+                                $item
+                                    ->color_name,
+
+                            'color' =>
+                                $item
+                                    ->color_name,
+
+                            'order_mode' =>
+                                $item
+                                    ->order_mode,
+
+                            'requested_quantity' =>
+                                $item
+                                    ->requested_quantity,
+
+                            'requested_unit' =>
+                                $item
+                                    ->requested_unit,
+
+                            'requested_amount_rwf' =>
+                                $item
+                                    ->requested_amount_rwf,
+
+                            'equivalent_ml' =>
+                                $item
+                                    ->equivalent_ml,
+
+                            'equivalent_l' =>
+                                $item
+                                    ->equivalent_l,
+
+                            'equivalent_g' =>
+                                $item
+                                    ->equivalent_g,
+
+                            'equivalent_kg' =>
+                                $item
+                                    ->equivalent_kg,
+
+                            'reference_quantity' =>
+                                $item
+                                    ->reference_quantity,
+
+                            'reference_unit' =>
+                                $item
+                                    ->reference_unit,
+
+                            'reference_price_rwf' =>
+                                $item
+                                    ->reference_price_rwf,
+
+                            'density_kg_per_l' =>
+                                $item
+                                    ->density_kg_per_l,
+
+                            'stock_unit' =>
+                                $item
+                                    ->stock_unit,
+
+                            'line_total_rwf' =>
+                                $item
+                                    ->line_total_rwf,
+
+                            'line_total' =>
+                                $item
+                                    ->line_total_rwf,
+                        ];
+                    }
+                )
+                ->values()
+                ->all();
+
+        /*
+         * Backward-compatible old order.
+         */
+        if (
+            count($items) === 0
+            &&
+            $order->service_id
+        ) {
+            $items[] = [
+                'service_public_id' =>
+                    $order->service
+                        ? (string) $order
+                            ->service
+                            ->public_id
+                        : null,
+
+                'service_name' =>
+                    $order
+                        ->service_name,
+
+                'name' =>
+                    $order
+                        ->service_name,
+
+                'paint_type' =>
+                    $order->service
+                        ?->paint_type,
+
+                'color_name' =>
+                    $order->service
+                        ?->color_name,
+
+                'order_mode' =>
+                    $order
+                        ->order_mode,
+
+                'requested_quantity' =>
+                    $order
+                        ->requested_quantity,
+
+                'requested_unit' =>
+                    $order
+                        ->requested_unit,
+
+                'requested_amount_rwf' =>
+                    $order
+                        ->requested_amount_rwf,
+
+                'equivalent_ml' =>
+                    $order
+                        ->equivalent_ml,
+
+                'equivalent_l' =>
+                    $order
+                        ->equivalent_l,
+
+                'equivalent_g' =>
+                    $order
+                        ->equivalent_g,
+
+                'equivalent_kg' =>
+                    $order
+                        ->equivalent_kg,
+
+                'line_total_rwf' =>
+                    $order
+                        ->total_price_rwf,
+            ];
+        }
+
+        return [
+            /*
+             * Mobile understands both.
+             */
+            'id' =>
+                (string) $order
+                    ->public_id,
+
+            'public_id' =>
+                (string) $order
+                    ->public_id,
+
+            'order_number' =>
+                $order
+                    ->order_number,
+
+            'status' =>
+                $order
+                    ->status,
+
+            'order_status' =>
+                $order
+                    ->status,
+
+            'payment_status' =>
+                $order
+                    ->payment_status,
+
+            'currency' =>
+                'RWF',
+
+            'item_count' =>
+                count(
+                    $items
+                ),
+
+            'subtotal_amount' =>
+                $subtotal,
+
+            'subtotal_amount_rwf' =>
+                $subtotal,
+
+            'delivery_method' =>
+                $order
+                    ->delivery_method,
+
+            'delivery_fee' =>
+                (float) (
+                    $order
+                        ->delivery_fee_rwf
+                    ?? 0
+                ),
+
+            'delivery_fee_rwf' =>
+                (float) (
+                    $order
+                        ->delivery_fee_rwf
+                    ?? 0
+                ),
+
+            'total_amount' =>
+                $total,
+
+            'total_amount_rwf' =>
+                $total,
+
+            'total_price_rwf' =>
+                $total,
+
+            'delivery_address' =>
+                $order
+                    ->delivery_address,
+
+            'delivery_latitude' =>
+                $order
+                    ->delivery_latitude,
+
+            'delivery_longitude' =>
+                $order
+                    ->delivery_longitude,
+
+            'delivery_city' =>
+                $order
+                    ->delivery_city,
+
+            'delivery_district' =>
+                $order
+                    ->delivery_district,
+
+            'delivery_region' =>
+                $order
+                    ->delivery_region,
+
+            'delivery_country' =>
+                $order
+                    ->delivery_country,
+
+            'is_kigali' =>
+                $order
+                    ->is_kigali,
+
+            'location_note' =>
+                $order
+                    ->location_note,
+
+            'customer_note' =>
+                $order
+                    ->customer_note,
+
+            'items' =>
+                $items,
+
+            'created_at' =>
+                $order
+                    ->created_at
+                    ?->toISOString(),
+
+            'updated_at' =>
+                $order
+                    ->updated_at
+                    ?->toISOString(),
+        ];
     }
 }
