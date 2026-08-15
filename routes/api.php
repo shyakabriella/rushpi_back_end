@@ -13,6 +13,7 @@ use App\Http\Controllers\API\V1\Admin\SellerVerificationController;
 use App\Http\Controllers\API\V1\Admin\ServiceController;
 use App\Http\Controllers\API\V1\Admin\SpecificationDefinitionController;
 use App\Http\Controllers\API\V1\Public\CatalogController;
+use App\Http\Controllers\API\V1\Public\ServiceController as PublicServiceController;
 use App\Http\Controllers\API\V1\Seller\InventoryController;
 use App\Http\Controllers\API\V1\Seller\ProductController;
 use App\Http\Controllers\API\V1\Seller\ProductMediaController;
@@ -112,6 +113,28 @@ Route::prefix('catalog')
             'brands',
             [CatalogController::class, 'brands']
         )->name('brands.index');
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Public paint services
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            'services',
+            [PublicServiceController::class, 'index']
+        )->name('services.index');
+
+        Route::get(
+            'services/{service:public_id}',
+            [PublicServiceController::class, 'show']
+        )->name('services.show');
+
+        Route::post(
+            'services/{service:public_id}/quote',
+            [PublicServiceController::class, 'quote']
+        )->name('services.quote');
 
         /*
         |--------------------------------------------------------------------------
