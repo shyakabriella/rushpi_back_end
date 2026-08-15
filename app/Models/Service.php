@@ -26,6 +26,7 @@ class Service extends Model
         'paint_type',
         'brand_name',
         'color_name',
+        'colors',
         'description',
 
         'reference_quantity',
@@ -48,6 +49,8 @@ class Service extends Model
     ];
 
     protected $casts = [
+        'colors' => 'array',
+
         'reference_quantity' => 'decimal:4',
 
         'reference_price_rwf' => 'decimal:2',
