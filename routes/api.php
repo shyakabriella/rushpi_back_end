@@ -12,6 +12,7 @@ use App\Http\Controllers\API\V1\Admin\ProductModerationController;
 use App\Http\Controllers\API\V1\Admin\SellerVerificationController;
 use App\Http\Controllers\API\V1\Admin\ServiceController;
 use App\Http\Controllers\API\V1\Admin\SpecificationDefinitionController;
+use App\Http\Controllers\API\V1\Customer\ServiceOrderController;
 use App\Http\Controllers\API\V1\Public\CatalogController;
 use App\Http\Controllers\API\V1\Public\ServiceController as PublicServiceController;
 use App\Http\Controllers\API\V1\Seller\InventoryController;
@@ -81,9 +82,10 @@ Route::prefix('catalog')
     ->name('api.catalog.')
     ->middleware('throttle:120,1')
     ->group(function (): void {
+
         /*
         |--------------------------------------------------------------------------
-        | Public marketplace homepage
+        | Homepage
         |--------------------------------------------------------------------------
         */
 
@@ -94,7 +96,7 @@ Route::prefix('catalog')
 
         /*
         |--------------------------------------------------------------------------
-        | Public categories
+        | Categories
         |--------------------------------------------------------------------------
         */
 
@@ -105,7 +107,7 @@ Route::prefix('catalog')
 
         /*
         |--------------------------------------------------------------------------
-        | Public brands
+        | Brands
         |--------------------------------------------------------------------------
         */
 
@@ -114,31 +116,50 @@ Route::prefix('catalog')
             [CatalogController::class, 'brands']
         )->name('brands.index');
 
-
         /*
         |--------------------------------------------------------------------------
         | Public paint services
         |--------------------------------------------------------------------------
+        |
+        | These routes are intentionally public.
+        |
+        | Mobile customers can:
+        |
+        | GET  /api/catalog/services
+        | GET  /api/catalog/services/{service}
+        | POST /api/catalog/services/{service}/quote
+        |
         */
 
         Route::get(
             'services',
-            [PublicServiceController::class, 'index']
+            [
+                PublicServiceController::class,
+                'index',
+            ]
         )->name('services.index');
 
         Route::get(
             'services/{service:public_id}',
-            [PublicServiceController::class, 'show']
+            [
+                PublicServiceController::class,
+                'show',
+            ]
         )->name('services.show');
 
         Route::post(
             'services/{service:public_id}/quote',
-            [PublicServiceController::class, 'quote']
-        )->name('services.quote');
+            [
+                PublicServiceController::class,
+                'quote',
+            ]
+        )
+            ->middleware('throttle:60,1')
+            ->name('services.quote');
 
         /*
         |--------------------------------------------------------------------------
-        | Public products
+        | Products
         |--------------------------------------------------------------------------
         */
 
@@ -166,9 +187,10 @@ Route::prefix('catalog')
 
 Route::middleware('auth:sanctum')
     ->group(function (): void {
+
         /*
         |--------------------------------------------------------------------------
-        | Authenticated account routes
+        | Account
         |--------------------------------------------------------------------------
         */
 
@@ -184,6 +206,102 @@ Route::middleware('auth:sanctum')
 
         /*
         |--------------------------------------------------------------------------
+        | Customer paint / service orders
+        |--------------------------------------------------------------------------
+        |
+        | These endpoints are used by the NTEZINET customer mobile app.
+        |
+        | GET  /api/customer/service-orders
+        | POST /api/customer/service-orders
+        |
+        | GET
+        | /api/customer/service-orders/{serviceOrder}
+        |
+        | POST
+        | /api/customer/service-orders/{serviceOrder}/cancel
+        |
+        */
+
+        Route::prefix('customer')
+            ->middleware(
+                RoleMiddleware::class
+                . ':customer'
+            )
+            ->name('api.customer.')
+            ->group(function (): void {
+
+                /*
+                 * Customer order history.
+                 */
+                Route::get(
+                    'service-orders',
+                    [
+                        ServiceOrderController::class,
+                        'index',
+                    ]
+                )
+                    ->name(
+                        'service-orders.index'
+                    );
+
+                /*
+                 * Create paint order.
+                 *
+                 * Example modes:
+                 *
+                 * volume -> 250 ml
+                 * weight -> 500 g
+                 * amount -> 1000 RWF
+                 */
+                Route::post(
+                    'service-orders',
+                    [
+                        ServiceOrderController::class,
+                        'store',
+                    ]
+                )
+                    ->middleware(
+                        'throttle:30,1'
+                    )
+                    ->name(
+                        'service-orders.store'
+                    );
+
+                /*
+                 * Cancel first, before the generic
+                 * service-order route for clarity.
+                 */
+                Route::post(
+                    'service-orders/{serviceOrder:public_id}/cancel',
+                    [
+                        ServiceOrderController::class,
+                        'cancel',
+                    ]
+                )
+                    ->middleware(
+                        'throttle:20,1'
+                    )
+                    ->name(
+                        'service-orders.cancel'
+                    );
+
+                /*
+                 * View one order.
+                 */
+                Route::get(
+                    'service-orders/{serviceOrder:public_id}',
+                    [
+                        ServiceOrderController::class,
+                        'show',
+                    ]
+                )
+                    ->name(
+                        'service-orders.show'
+                    );
+            });
+
+        /*
+        |--------------------------------------------------------------------------
         | Seller routes
         |--------------------------------------------------------------------------
         */
@@ -196,63 +314,93 @@ Route::middleware('auth:sanctum')
             )
             ->name('api.seller.')
             ->group(function (): void {
+
                 /*
                 |--------------------------------------------------------------------------
                 | Seller profile
                 |--------------------------------------------------------------------------
-                |
-                | Seller profiles can be created and completed before approval.
-                |
-                | POST profiles/{sellerProfile} is intentionally provided for
-                | multipart/form-data updates containing logo / cover images.
-                |
                 */
 
                 Route::get(
                     'profiles',
-                    [SellerProfileController::class, 'index']
+                    [
+                        SellerProfileController::class,
+                        'index',
+                    ]
                 )
-                    ->name('profiles.index');
+                    ->name(
+                        'profiles.index'
+                    );
 
                 Route::post(
                     'profiles',
-                    [SellerProfileController::class, 'store']
+                    [
+                        SellerProfileController::class,
+                        'store',
+                    ]
                 )
-                    ->middleware('throttle:20,1')
-                    ->name('profiles.store');
+                    ->middleware(
+                        'throttle:20,1'
+                    )
+                    ->name(
+                        'profiles.store'
+                    );
 
                 /*
-                 * Multipart seller profile update.
-                 *
-                 * Useful when the frontend sends FormData
-                 * containing logo and cover_image.
+                 * Multipart update for logo / cover.
                  */
                 Route::post(
                     'profiles/{sellerProfile:public_id}',
-                    [SellerProfileController::class, 'update']
+                    [
+                        SellerProfileController::class,
+                        'update',
+                    ]
                 )
-                    ->middleware('throttle:30,1')
-                    ->name('profiles.update.multipart');
+                    ->middleware(
+                        'throttle:30,1'
+                    )
+                    ->name(
+                        'profiles.update.multipart'
+                    );
 
                 Route::get(
                     'profiles/{sellerProfile:public_id}',
-                    [SellerProfileController::class, 'show']
+                    [
+                        SellerProfileController::class,
+                        'show',
+                    ]
                 )
-                    ->name('profiles.show');
+                    ->name(
+                        'profiles.show'
+                    );
 
                 Route::put(
                     'profiles/{sellerProfile:public_id}',
-                    [SellerProfileController::class, 'update']
+                    [
+                        SellerProfileController::class,
+                        'update',
+                    ]
                 )
-                    ->middleware('throttle:30,1')
-                    ->name('profiles.update');
+                    ->middleware(
+                        'throttle:30,1'
+                    )
+                    ->name(
+                        'profiles.update'
+                    );
 
                 Route::patch(
                     'profiles/{sellerProfile:public_id}',
-                    [SellerProfileController::class, 'update']
+                    [
+                        SellerProfileController::class,
+                        'update',
+                    ]
                 )
-                    ->middleware('throttle:30,1')
-                    ->name('profiles.patch');
+                    ->middleware(
+                        'throttle:30,1'
+                    )
+                    ->name(
+                        'profiles.patch'
+                    );
 
                 /*
                 |--------------------------------------------------------------------------
@@ -260,16 +408,12 @@ Route::middleware('auth:sanctum')
                 |--------------------------------------------------------------------------
                 */
 
-                /*
-                 * Active verification requirement catalog.
-                 *
-                 * The seller verification workspace uses this endpoint to
-                 * populate the Document type selector before any document has
-                 * been uploaded.
-                 */
                 Route::get(
                     'document-requirements',
-                    [SellerDocumentController::class, 'requirements']
+                    [
+                        SellerDocumentController::class,
+                        'requirements',
+                    ]
                 )
                     ->name(
                         'document-requirements.index'
@@ -279,7 +423,10 @@ Route::middleware('auth:sanctum')
                     'profiles/{sellerProfile:public_id}'
                     . '/applications/{sellerApplication:public_id}'
                     . '/documents',
-                    [SellerDocumentController::class, 'index']
+                    [
+                        SellerDocumentController::class,
+                        'index',
+                    ]
                 )
                     ->name(
                         'applications.documents.index'
@@ -289,9 +436,14 @@ Route::middleware('auth:sanctum')
                     'profiles/{sellerProfile:public_id}'
                     . '/applications/{sellerApplication:public_id}'
                     . '/documents',
-                    [SellerDocumentController::class, 'store']
+                    [
+                        SellerDocumentController::class,
+                        'store',
+                    ]
                 )
-                    ->middleware('throttle:10,1')
+                    ->middleware(
+                        'throttle:10,1'
+                    )
                     ->name(
                         'applications.documents.store'
                     );
@@ -300,7 +452,10 @@ Route::middleware('auth:sanctum')
                     'profiles/{sellerProfile:public_id}'
                     . '/applications/{sellerApplication:public_id}'
                     . '/documents/{sellerDocument:public_id}/download',
-                    [SellerDocumentController::class, 'download']
+                    [
+                        SellerDocumentController::class,
+                        'download',
+                    ]
                 )
                     ->name(
                         'applications.documents.download'
@@ -310,16 +465,21 @@ Route::middleware('auth:sanctum')
                     'profiles/{sellerProfile:public_id}'
                     . '/applications/{sellerApplication:public_id}'
                     . '/documents/{sellerDocument:public_id}',
-                    [SellerDocumentController::class, 'destroy']
+                    [
+                        SellerDocumentController::class,
+                        'destroy',
+                    ]
                 )
-                    ->middleware('throttle:20,1')
+                    ->middleware(
+                        'throttle:20,1'
+                    )
                     ->name(
                         'applications.documents.destroy'
                     );
 
                 /*
                 |--------------------------------------------------------------------------
-                | Submit seller verification application
+                | Submit seller application
                 |--------------------------------------------------------------------------
                 */
 
@@ -327,16 +487,21 @@ Route::middleware('auth:sanctum')
                     'profiles/{sellerProfile:public_id}'
                     . '/applications/{sellerApplication:public_id}'
                     . '/submit',
-                    [SellerDocumentController::class, 'submit']
+                    [
+                        SellerDocumentController::class,
+                        'submit',
+                    ]
                 )
-                    ->middleware('throttle:5,1')
+                    ->middleware(
+                        'throttle:5,1'
+                    )
                     ->name(
                         'applications.submit'
                     );
 
                 /*
                 |--------------------------------------------------------------------------
-                | Approved seller routes
+                | Approved seller marketplace
                 |--------------------------------------------------------------------------
                 */
 
@@ -349,25 +514,13 @@ Route::middleware('auth:sanctum')
                     ->scopeBindings()
                     ->name('selling.')
                     ->group(function (): void {
+
                         /*
                         |--------------------------------------------------------------------------
-                        | Products
+                        | Product form options
                         |--------------------------------------------------------------------------
                         */
 
-                        /*
-                         * Seller one-page product form options.
-                         *
-                         * IMPORTANT:
-                         * Keep this fixed route BEFORE Route::apiResource('products', ...)
-                         * so Laravel never interprets "form-options" as {product}.
-                         *
-                         * GET
-                         * /api/seller/profiles/{sellerProfile}/products/form-options
-                         *
-                         * Optional query:
-                         * ?category={category_public_id}
-                         */
                         Route::get(
                             'products/form-options',
                             [
@@ -382,16 +535,23 @@ Route::middleware('auth:sanctum')
                                 'products.form-options'
                             );
 
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Products
+                        |--------------------------------------------------------------------------
+                        */
+
                         Route::apiResource(
                             'products',
                             ProductController::class
                         )->parameters([
-                            'products' => 'product',
+                            'products' =>
+                                'product',
                         ]);
 
                         /*
                         |--------------------------------------------------------------------------
-                        | Submit product for moderation
+                        | Submit product
                         |--------------------------------------------------------------------------
                         */
 
@@ -411,7 +571,7 @@ Route::middleware('auth:sanctum')
 
                         /*
                         |--------------------------------------------------------------------------
-                        | Product return policy
+                        | Return policy
                         |--------------------------------------------------------------------------
                         */
 
@@ -492,13 +652,16 @@ Route::middleware('auth:sanctum')
                             'products.variants',
                             ProductVariantController::class
                         )->parameters([
-                            'products' => 'product',
-                            'variants' => 'variant',
+                            'products' =>
+                                'product',
+
+                            'variants' =>
+                                'variant',
                         ]);
 
                         /*
                         |--------------------------------------------------------------------------
-                        | Product variant pricing
+                        | Variant price
                         |--------------------------------------------------------------------------
                         */
 
@@ -561,7 +724,7 @@ Route::middleware('auth:sanctum')
 
                         /*
                         |--------------------------------------------------------------------------
-                        | Product variant inventory
+                        | Inventory
                         |--------------------------------------------------------------------------
                         */
 
@@ -627,13 +790,8 @@ Route::middleware('auth:sanctum')
 
                         /*
                         |--------------------------------------------------------------------------
-                        | Product stock movement history
+                        | Stock movements
                         |--------------------------------------------------------------------------
-                        |
-                        | StockMovement records are immutable audit records.
-                        | InventoryController changes stock; StockMovementController
-                        | exposes read-only movement history.
-                        |
                         */
 
                         Route::get(
@@ -693,10 +851,6 @@ Route::middleware('auth:sanctum')
                                 'products.media.store'
                             );
 
-                        /*
-                         * Keep this fixed route before
-                         * the dynamic {media} parameter.
-                         */
                         Route::patch(
                             'products/{product:public_id}/media/reorder',
                             [
@@ -777,15 +931,6 @@ Route::middleware('auth:sanctum')
                 |--------------------------------------------------------------------------
                 | Departments
                 |--------------------------------------------------------------------------
-                |
-                | Departments sit above the existing category hierarchy.
-                |
-                | Example:
-                |
-                | Electronics (Department)
-                |   -> Computers (Category)
-                |      -> Laptops (Subcategory through categories.parent_id)
-                |
                 */
 
                 Route::apiResource(
@@ -796,12 +941,6 @@ Route::middleware('auth:sanctum')
                         'department',
                 ]);
 
-                /*
-                 * Replace/synchronize the categories assigned
-                 * to one marketplace department.
-                 *
-                 * PUT /api/admin/departments/{department}/categories
-                 */
                 Route::put(
                     'departments/{department:public_id}/categories',
                     [
@@ -832,13 +971,11 @@ Route::middleware('auth:sanctum')
                         SpecificationDefinitionController::class
                     )
                     ->group(function (): void {
+
                         Route::get(
                             '/',
                             'index'
-                        )
-                            ->name(
-                                'index'
-                            );
+                        )->name('index');
 
                         Route::post(
                             '/',
@@ -847,9 +984,7 @@ Route::middleware('auth:sanctum')
                             ->middleware(
                                 'throttle:30,1'
                             )
-                            ->name(
-                                'store'
-                            );
+                            ->name('store');
 
                         Route::patch(
                             '/{specificationDefinition:public_id}/activate',
@@ -876,10 +1011,7 @@ Route::middleware('auth:sanctum')
                         Route::get(
                             '/{specificationDefinition:public_id}',
                             'show'
-                        )
-                            ->name(
-                                'show'
-                            );
+                        )->name('show');
 
                         Route::put(
                             '/{specificationDefinition:public_id}',
@@ -917,7 +1049,7 @@ Route::middleware('auth:sanctum')
 
                 /*
                 |--------------------------------------------------------------------------
-                | Category specification assignments
+                | Category specifications
                 |--------------------------------------------------------------------------
                 */
 
@@ -931,13 +1063,11 @@ Route::middleware('auth:sanctum')
                         CategorySpecificationController::class
                     )
                     ->group(function (): void {
+
                         Route::get(
                             '/',
                             'index'
-                        )
-                            ->name(
-                                'index'
-                            );
+                        )->name('index');
 
                         Route::post(
                             '/',
@@ -946,9 +1076,7 @@ Route::middleware('auth:sanctum')
                             ->middleware(
                                 'throttle:30,1'
                             )
-                            ->name(
-                                'store'
-                            );
+                            ->name('store');
 
                         Route::patch(
                             '/reorder',
@@ -986,10 +1114,7 @@ Route::middleware('auth:sanctum')
                         Route::get(
                             '/{categorySpecification:public_id}',
                             'show'
-                        )
-                            ->name(
-                                'show'
-                            );
+                        )->name('show');
 
                         Route::put(
                             '/{categorySpecification:public_id}',
@@ -1053,23 +1178,10 @@ Route::middleware('auth:sanctum')
                         'brand',
                 ]);
 
-
-
                 /*
                 |--------------------------------------------------------------------------
                 | Paint / service management
                 |--------------------------------------------------------------------------
-                |
-                | Admin manages paint services used for measured selling.
-                |
-                | GET    /api/admin/services
-                | POST   /api/admin/services
-                | GET    /api/admin/services/{service}
-                | PUT    /api/admin/services/{service}
-                | PATCH  /api/admin/services/{service}
-                | DELETE /api/admin/services/{service}
-                | POST   /api/admin/services/{service}/quote
-                |
                 */
 
                 Route::post(
@@ -1098,16 +1210,6 @@ Route::middleware('auth:sanctum')
                 |--------------------------------------------------------------------------
                 | Commission rules
                 |--------------------------------------------------------------------------
-                |
-                | Marketplace commission precedence:
-                |
-                | Category
-                |     -> Department
-                |         -> Global
-                |
-                | When multiple effective rules exist at the same scope,
-                | the rule with the higher priority should win.
-                |
                 */
 
                 Route::prefix(
@@ -1120,20 +1222,12 @@ Route::middleware('auth:sanctum')
                         CommissionRuleController::class
                     )
                     ->group(function (): void {
-                        /*
-                         * GET /api/admin/commission-rules
-                         */
+
                         Route::get(
                             '/',
                             'index'
-                        )
-                            ->name(
-                                'index'
-                            );
+                        )->name('index');
 
-                        /*
-                         * POST /api/admin/commission-rules
-                         */
                         Route::post(
                             '/',
                             'store'
@@ -1141,14 +1235,8 @@ Route::middleware('auth:sanctum')
                             ->middleware(
                                 'throttle:30,1'
                             )
-                            ->name(
-                                'store'
-                            );
+                            ->name('store');
 
-                        /*
-                         * Keep fixed action routes before the dynamic
-                         * show/update/delete route.
-                         */
                         Route::patch(
                             '/{commissionRule:public_id}/activate',
                             'activate'
@@ -1171,20 +1259,11 @@ Route::middleware('auth:sanctum')
                                 'deactivate'
                             );
 
-                        /*
-                         * GET /api/admin/commission-rules/{commissionRule}
-                         */
                         Route::get(
                             '/{commissionRule:public_id}',
                             'show'
-                        )
-                            ->name(
-                                'show'
-                            );
+                        )->name('show');
 
-                        /*
-                         * PUT /api/admin/commission-rules/{commissionRule}
-                         */
                         Route::put(
                             '/{commissionRule:public_id}',
                             'update'
@@ -1196,9 +1275,6 @@ Route::middleware('auth:sanctum')
                                 'update'
                             );
 
-                        /*
-                         * PATCH /api/admin/commission-rules/{commissionRule}
-                         */
                         Route::patch(
                             '/{commissionRule:public_id}',
                             'update'
@@ -1210,9 +1286,6 @@ Route::middleware('auth:sanctum')
                                 'patch'
                             );
 
-                        /*
-                         * DELETE /api/admin/commission-rules/{commissionRule}
-                         */
                         Route::delete(
                             '/{commissionRule:public_id}',
                             'destroy'
@@ -1269,7 +1342,7 @@ Route::middleware('auth:sanctum')
 
                 /*
                 |--------------------------------------------------------------------------
-                | Seller verification applications
+                | Seller applications
                 |--------------------------------------------------------------------------
                 */
 
@@ -1361,13 +1434,6 @@ Route::middleware('auth:sanctum')
                 |--------------------------------------------------------------------------
                 */
 
-                /*
-                 * Run malware/security scan for a quarantined document.
-                 *
-                 * Status flow:
-                 * quarantined -> pending_scan
-                 *             -> clean | infected | scan_failed
-                 */
                 Route::post(
                     'seller-applications/{sellerApplication:public_id}'
                     . '/documents/{sellerDocument:public_id}/scan',
