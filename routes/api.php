@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\API\RegisterController;
+use App\Http\Controllers\API\Auth\PasswordResetController;
 use App\Http\Controllers\API\V1\Admin\BrandController;
 use App\Http\Controllers\API\V1\Admin\CategoryController;
 use App\Http\Controllers\API\V1\Admin\CategorySpecificationController;
@@ -74,6 +75,26 @@ Route::controller(RegisterController::class)
             ->middleware('throttle:20,1')
             ->name('api.auth.login');
     });
+
+/*
+|--------------------------------------------------------------------------
+| Public password reset routes
+|--------------------------------------------------------------------------
+*/
+
+Route::post(
+    'forgot-password',
+    [PasswordResetController::class, 'forgot']
+)
+    ->middleware('throttle:5,1')
+    ->name('api.auth.password.forgot');
+
+Route::post(
+    'reset-password',
+    [PasswordResetController::class, 'reset']
+)
+    ->middleware('throttle:10,1')
+    ->name('api.auth.password.reset');
 
 /*
 |--------------------------------------------------------------------------
