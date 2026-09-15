@@ -13,6 +13,7 @@ use App\Http\Controllers\API\V1\Admin\SellerVerificationController;
 use App\Http\Controllers\API\V1\Admin\ServiceController;
 use App\Http\Controllers\API\V1\Admin\SpecificationDefinitionController;
 use App\Http\Controllers\API\V1\Customer\ServiceOrderController;
+use App\Http\Controllers\API\V1\Customer\ProductOrderController;
 use App\Http\Controllers\API\V1\Public\CatalogController;
 use App\Http\Controllers\API\V1\Public\ServiceController as PublicServiceController;
 use App\Http\Controllers\API\V1\Seller\InventoryController;
@@ -25,6 +26,8 @@ use App\Http\Controllers\API\V1\Seller\SellerDocumentController;
 use App\Http\Controllers\API\V1\Seller\SellerProfileController;
 use App\Http\Controllers\API\V1\Seller\StockMovementController;
 use App\Http\Controllers\API\V1\System\HealthController;
+use App\Http\Controllers\API\V1\Admin\ProductOrderController as AdminProductOrderController;
+use App\Http\Controllers\API\V1\Seller\ProductOrderController as SellerProductOrderController;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Spatie\Permission\Middleware\RoleMiddleware;
@@ -179,6 +182,20 @@ Route::prefix('catalog')
             ->name('products.show');
     });
 
+
+/*
+|--------------------------------------------------------------------------
+| Public product checkout
+|--------------------------------------------------------------------------
+*/
+
+Route::post(
+    'product-orders',
+    [ProductOrderController::class, 'store']
+)
+    ->middleware('throttle:20,1')
+    ->name('api.product-orders.store');
+
 /*
 |--------------------------------------------------------------------------
 | Authenticated routes
@@ -187,6 +204,48 @@ Route::prefix('catalog')
 
 Route::middleware('auth:sanctum')
     ->group(function (): void {
+
+
+        Route::prefix('seller/product-orders')
+            ->middleware(
+                RoleMiddleware::class . ':seller|dealer'
+            )
+            ->name('api.seller.product-orders.')
+            ->group(function (): void {
+                Route::get(
+                    '/',
+                    [SellerProductOrderController::class, 'index']
+                )->name('index');
+
+                Route::get(
+                    '{productOrder:public_id}',
+                    [SellerProductOrderController::class, 'show']
+                )->name('show');
+            });
+
+        Route::prefix('admin/product-orders')
+            ->middleware(
+                RoleMiddleware::class . ':admin'
+            )
+            ->name('api.admin.product-orders.')
+            ->group(function (): void {
+                Route::get(
+                    '/',
+                    [AdminProductOrderController::class, 'index']
+                )->name('index');
+
+                Route::get(
+                    '{productOrder:public_id}',
+                    [AdminProductOrderController::class, 'show']
+                )->name('show');
+
+                Route::patch(
+                    '{productOrder:public_id}/status',
+                    [AdminProductOrderController::class, 'updateStatus']
+                )
+                    ->middleware('throttle:30,1')
+                    ->name('status');
+            });
 
         /*
         |--------------------------------------------------------------------------
@@ -317,6 +376,31 @@ Route::middleware('auth:sanctum')
             )
             ->name('api.customer.')
             ->group(function (): void {
+
+                Route::get(
+                    'product-orders',
+                    [ProductOrderController::class, 'index']
+                )->name('product-orders.index');
+
+                Route::post(
+                    'product-orders',
+                    [ProductOrderController::class, 'store']
+                )
+                    ->middleware('throttle:20,1')
+                    ->name('product-orders.store');
+
+                Route::get(
+                    'product-orders/{productOrder:public_id}',
+                    [ProductOrderController::class, 'show']
+                )->name('product-orders.show');
+
+                Route::post(
+                    'product-orders/{productOrder:public_id}/cancel',
+                    [ProductOrderController::class, 'cancel']
+                )
+                    ->middleware('throttle:20,1')
+                    ->name('product-orders.cancel');
+
 
                 /*
                  * Customer order history.
