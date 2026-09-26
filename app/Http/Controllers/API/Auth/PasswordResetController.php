@@ -88,6 +88,11 @@ final class PasswordResetController extends Controller
                 'confirmed',
                 PasswordRule::min(8),
             ],
+            'password_confirmation' => [
+                'required',
+                'string',
+                'min:8',
+            ],
         ]);
 
         $status = Password::broker()->reset(

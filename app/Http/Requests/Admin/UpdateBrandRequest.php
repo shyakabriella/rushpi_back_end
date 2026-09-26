@@ -43,7 +43,6 @@ class UpdateBrandRequest extends FormRequest
 
                 Rule::unique('brands', 'name')
                     ->ignore($brandId)
-                    ->whereNull('deleted_at'),
             ],
 
             'slug' => [
@@ -55,7 +54,6 @@ class UpdateBrandRequest extends FormRequest
 
                 Rule::unique('brands', 'slug')
                     ->ignore($brandId)
-                    ->whereNull('deleted_at'),
             ],
 
             'description' => [

@@ -197,7 +197,7 @@ class BrandController extends Controller
         }
 
         try {
-            $brand->delete();
+            $brand->forceDelete();
 
             return response()->json([
                 'success' => true,

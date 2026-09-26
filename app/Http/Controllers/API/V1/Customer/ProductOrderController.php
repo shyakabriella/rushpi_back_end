@@ -10,9 +10,12 @@ use App\Models\InventoryStock;
 use App\Models\Product;
 use App\Models\ProductOrder;
 use App\Models\ProductVariant;
+use App\Models\SellerProfile;
+use App\Notifications\NewProductOrderNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 final class ProductOrderController extends Controller
@@ -227,6 +230,8 @@ final class ProductOrderController extends Controller
             3
         );
 
+        $this->notifyAffectedSellers($order);
+
         return response()->json([
             'success' => true,
             'message' =>
@@ -392,5 +397,175 @@ final class ProductOrderController extends Controller
         ]);
     }
 
+
+    private function notifyAffectedSellers(
+        ProductOrder $order
+    ): void {
+        try {
+            $order->loadMissing('items');
+
+            $itemsBySeller = $order
+                ->items
+                ->groupBy('seller_profile_id');
+
+            $sellers = SellerProfile::query()
+                ->whereIn(
+                    'id',
+                    $itemsBySeller->keys()->all()
+                )
+                ->get();
+
+            foreach ($sellers as $seller) {
+                $sellerItems = $itemsBySeller
+                    ->get($seller->id, collect());
+
+                if ($sellerItems->isEmpty()) {
+                    continue;
+                }
+
+                $notificationItems = $sellerItems
+                    ->map(
+                        static fn ($item): array => [
+                            'product_name' =>
+                                $item->product_name,
+                            'variant_name' =>
+                                $item->variant_name,
+                            'quantity' =>
+                                $item->quantity,
+                            'unit_price' =>
+                                $item->unit_price,
+                            'line_total' =>
+                                $item->line_total,
+                        ]
+                    )
+                    ->values()
+                    ->all();
+
+                $orderInformation = [
+                    'order_number' =>
+                        $order->order_number,
+                    'currency' =>
+                        $order->currency ?? 'RWF',
+                    'placed_at' =>
+                        $order->placed_at?->format(
+                            'd M Y, H:i'
+                        ) ?? now()->format(
+                            'd M Y, H:i'
+                        ),
+                    'seller_subtotal' =>
+                        $sellerItems->sum(
+                            fn ($item): float =>
+                                (float) $item->line_total
+                        ),
+                    'customer_name' =>
+                        trim(
+                            $order->first_name
+                            .' '
+                            .$order->last_name
+                        ),
+                    'customer_email' =>
+                        $this->maskSellerEmail(
+                            $order->email
+                        ),
+                    'customer_phone' =>
+                        $this->maskSellerPhone(
+                            $order->phone
+                        ),
+                    'delivery_area' =>
+                        $this->deliveryArea($order),
+                ];
+
+                $sellerInformation = [
+                    'id' => $seller->id,
+                    'name' =>
+                        $seller->trading_name
+                        ?? $seller->legal_business_name
+                        ?? 'RushPi Shop',
+                ];
+
+                $recipients = $seller
+                    ->users()
+                    ->wherePivot('status', 'active')
+                    ->whereNotNull('users.email')
+                    ->get()
+                    ->unique('id');
+
+                foreach ($recipients as $recipient) {
+                    $recipient->notify(
+                        new NewProductOrderNotification(
+                            $orderInformation,
+                            $sellerInformation,
+                            $notificationItems
+                        )
+                    );
+                }
+            }
+        } catch (\Throwable $exception) {
+            Log::error(
+                'Seller order notification could not be queued.',
+                [
+                    'order_id' => $order->id,
+                    'order_number' =>
+                        $order->order_number,
+                    'error' =>
+                        $exception->getMessage(),
+                ]
+            );
+        }
+    }
+
+    private function maskSellerEmail(
+        ?string $email
+    ): string {
+        if (
+            $email === null ||
+            ! str_contains($email, '@')
+        ) {
+            return '********';
+        }
+
+        [$username, $domain] = explode(
+            '@',
+            $email,
+            2
+        );
+
+        $firstCharacter = $username !== ''
+            ? mb_substr($username, 0, 1)
+            : '';
+
+        return $firstCharacter
+            .'******@'
+            .$domain;
+    }
+
+    private function maskSellerPhone(
+        ?string $phone
+    ): string {
+        if ($phone === null || $phone === '') {
+            return '********';
+        }
+
+        $visibleDigits = mb_substr($phone, -3);
+
+        return str_repeat(
+            '*',
+            max(mb_strlen($phone) - 3, 5)
+        ).$visibleDigits;
+    }
+
+    private function deliveryArea(
+        ProductOrder $order
+    ): string {
+        $parts = array_filter([
+            $order->delivery_province,
+            $order->delivery_district,
+            $order->delivery_sector,
+        ]);
+
+        return $parts === []
+            ? 'Not specified'
+            : implode(', ', $parts);
+    }
 
 }

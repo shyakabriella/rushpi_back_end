@@ -36,7 +36,6 @@ class StoreBrandRequest extends FormRequest
                 'string',
                 'max:150',
                 Rule::unique('brands', 'name')
-                    ->whereNull('deleted_at'),
             ],
 
             'slug' => [
@@ -45,7 +44,6 @@ class StoreBrandRequest extends FormRequest
                 'max:180',
                 'alpha_dash',
                 Rule::unique('brands', 'slug')
-                    ->whereNull('deleted_at'),
             ],
 
             'description' => [
