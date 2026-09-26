@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Http\Controllers\API\RegisterController;
 use App\Http\Controllers\API\Auth\PasswordResetController;
 use App\Http\Controllers\API\V1\Admin\BrandController;
+use App\Http\Controllers\API\V1\Admin\BrandModelController;
+use App\Http\Controllers\API\V1\Admin\BrandSeriesController;
 use App\Http\Controllers\API\V1\Admin\CategoryController;
 use App\Http\Controllers\API\V1\Admin\CategorySpecificationController;
 use App\Http\Controllers\API\V1\Admin\CommissionRuleController;
@@ -1362,6 +1364,90 @@ Route::middleware('auth:sanctum')
                 | Brands
                 |--------------------------------------------------------------------------
                 */
+
+                Route::prefix(
+                    'brands/{brand}'
+                )->group(function (): void {
+                    Route::get(
+                        'series',
+                        [
+                            BrandSeriesController::class,
+                            'index',
+                        ]
+                    );
+
+                    Route::post(
+                        'series',
+                        [
+                            BrandSeriesController::class,
+                            'store',
+                        ]
+                    );
+
+                    Route::put(
+                        'series/{series}',
+                        [
+                            BrandSeriesController::class,
+                            'update',
+                        ]
+                    );
+
+                    Route::patch(
+                        'series/{series}',
+                        [
+                            BrandSeriesController::class,
+                            'update',
+                        ]
+                    );
+
+                    Route::delete(
+                        'series/{series}',
+                        [
+                            BrandSeriesController::class,
+                            'destroy',
+                        ]
+                    );
+
+                    Route::get(
+                        'series/{series}/models',
+                        [
+                            BrandModelController::class,
+                            'index',
+                        ]
+                    );
+
+                    Route::post(
+                        'series/{series}/models',
+                        [
+                            BrandModelController::class,
+                            'store',
+                        ]
+                    );
+
+                    Route::put(
+                        'series/{series}/models/{model}',
+                        [
+                            BrandModelController::class,
+                            'update',
+                        ]
+                    );
+
+                    Route::patch(
+                        'series/{series}/models/{model}',
+                        [
+                            BrandModelController::class,
+                            'update',
+                        ]
+                    );
+
+                    Route::delete(
+                        'series/{series}/models/{model}',
+                        [
+                            BrandModelController::class,
+                            'destroy',
+                        ]
+                    );
+                });
 
                 Route::apiResource(
                     'brands',

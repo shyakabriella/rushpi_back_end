@@ -237,6 +237,28 @@ class Brand extends Model
         );
     }
 
+    /**
+     * Product series belonging to this brand.
+     */
+    public function series(): HasMany
+    {
+        return $this->hasMany(
+            BrandSeries::class,
+            'brand_id'
+        );
+    }
+
+    /**
+     * Product models belonging to this brand.
+     */
+    public function models(): HasMany
+    {
+        return $this->hasMany(
+            BrandModel::class,
+            'brand_id'
+        );
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Query Scopes
