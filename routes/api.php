@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use App\Http\Controllers\API\RegisterController;
 use App\Http\Controllers\API\Auth\PasswordResetController;
+use App\Http\Controllers\API\RegisterController;
 use App\Http\Controllers\API\V1\Admin\BrandController;
 use App\Http\Controllers\API\V1\Admin\BrandModelController;
 use App\Http\Controllers\API\V1\Admin\BrandSeriesController;
@@ -11,17 +11,21 @@ use App\Http\Controllers\API\V1\Admin\CategoryController;
 use App\Http\Controllers\API\V1\Admin\CategorySpecificationController;
 use App\Http\Controllers\API\V1\Admin\CommissionRuleController;
 use App\Http\Controllers\API\V1\Admin\DepartmentController;
+use App\Http\Controllers\API\V1\Admin\HomepageCampaignController as AdminHomepageCampaignController;
 use App\Http\Controllers\API\V1\Admin\ProductModerationController;
+use App\Http\Controllers\API\V1\Admin\ProductOrderController as AdminProductOrderController;
 use App\Http\Controllers\API\V1\Admin\SellerVerificationController;
 use App\Http\Controllers\API\V1\Admin\ServiceController;
 use App\Http\Controllers\API\V1\Admin\SpecificationDefinitionController;
-use App\Http\Controllers\API\V1\Customer\ServiceOrderController;
 use App\Http\Controllers\API\V1\Customer\ProductOrderController;
+use App\Http\Controllers\API\V1\Customer\ServiceOrderController;
 use App\Http\Controllers\API\V1\Public\CatalogController;
+use App\Http\Controllers\API\V1\Public\HomepageCampaignController as PublicHomepageCampaignController;
 use App\Http\Controllers\API\V1\Public\ServiceController as PublicServiceController;
 use App\Http\Controllers\API\V1\Seller\InventoryController;
 use App\Http\Controllers\API\V1\Seller\ProductController;
 use App\Http\Controllers\API\V1\Seller\ProductMediaController;
+use App\Http\Controllers\API\V1\Seller\ProductOrderController as SellerProductOrderController;
 use App\Http\Controllers\API\V1\Seller\ProductReturnPolicyController;
 use App\Http\Controllers\API\V1\Seller\ProductVariantController;
 use App\Http\Controllers\API\V1\Seller\ProductVariantPriceController;
@@ -29,8 +33,6 @@ use App\Http\Controllers\API\V1\Seller\SellerDocumentController;
 use App\Http\Controllers\API\V1\Seller\SellerProfileController;
 use App\Http\Controllers\API\V1\Seller\StockMovementController;
 use App\Http\Controllers\API\V1\System\HealthController;
-use App\Http\Controllers\API\V1\Admin\ProductOrderController as AdminProductOrderController;
-use App\Http\Controllers\API\V1\Seller\ProductOrderController as SellerProductOrderController;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Spatie\Permission\Middleware\RoleMiddleware;
@@ -205,7 +207,6 @@ Route::prefix('catalog')
             ->name('products.show');
     });
 
-
 /*
 |--------------------------------------------------------------------------
 | Public product checkout
@@ -228,10 +229,9 @@ Route::post(
 Route::middleware('auth:sanctum')
     ->group(function (): void {
 
-
         Route::prefix('seller/product-orders')
             ->middleware(
-                RoleMiddleware::class . ':seller|dealer'
+                RoleMiddleware::class.':seller|dealer'
             )
             ->name('api.seller.product-orders.')
             ->group(function (): void {
@@ -248,7 +248,7 @@ Route::middleware('auth:sanctum')
 
         Route::prefix('admin/product-orders')
             ->middleware(
-                RoleMiddleware::class . ':admin'
+                RoleMiddleware::class.':admin'
             )
             ->name('api.admin.product-orders.')
             ->group(function (): void {
@@ -306,7 +306,7 @@ Route::middleware('auth:sanctum')
         Route::prefix('orders')
             ->middleware(
                 RoleMiddleware::class
-                . ':customer'
+                .':customer'
             )
             ->name('api.orders.')
             ->group(function (): void {
@@ -395,7 +395,7 @@ Route::middleware('auth:sanctum')
         Route::prefix('customer')
             ->middleware(
                 RoleMiddleware::class
-                . ':customer'
+                .':customer'
             )
             ->name('api.customer.')
             ->group(function (): void {
@@ -423,7 +423,6 @@ Route::middleware('auth:sanctum')
                 )
                     ->middleware('throttle:20,1')
                     ->name('product-orders.cancel');
-
 
                 /*
                  * Customer order history.
@@ -504,8 +503,8 @@ Route::middleware('auth:sanctum')
         Route::prefix('seller')
             ->middleware(
                 RoleMiddleware::class
-                . ':'
-                . User::ROLE_SELLER
+                .':'
+                .User::ROLE_SELLER
             )
             ->name('api.seller.')
             ->group(function (): void {
@@ -616,8 +615,8 @@ Route::middleware('auth:sanctum')
 
                 Route::get(
                     'profiles/{sellerProfile:public_id}'
-                    . '/applications/{sellerApplication:public_id}'
-                    . '/documents',
+                    .'/applications/{sellerApplication:public_id}'
+                    .'/documents',
                     [
                         SellerDocumentController::class,
                         'index',
@@ -629,8 +628,8 @@ Route::middleware('auth:sanctum')
 
                 Route::post(
                     'profiles/{sellerProfile:public_id}'
-                    . '/applications/{sellerApplication:public_id}'
-                    . '/documents',
+                    .'/applications/{sellerApplication:public_id}'
+                    .'/documents',
                     [
                         SellerDocumentController::class,
                         'store',
@@ -645,8 +644,8 @@ Route::middleware('auth:sanctum')
 
                 Route::get(
                     'profiles/{sellerProfile:public_id}'
-                    . '/applications/{sellerApplication:public_id}'
-                    . '/documents/{sellerDocument:public_id}/download',
+                    .'/applications/{sellerApplication:public_id}'
+                    .'/documents/{sellerDocument:public_id}/download',
                     [
                         SellerDocumentController::class,
                         'download',
@@ -658,8 +657,8 @@ Route::middleware('auth:sanctum')
 
                 Route::delete(
                     'profiles/{sellerProfile:public_id}'
-                    . '/applications/{sellerApplication:public_id}'
-                    . '/documents/{sellerDocument:public_id}',
+                    .'/applications/{sellerApplication:public_id}'
+                    .'/documents/{sellerDocument:public_id}',
                     [
                         SellerDocumentController::class,
                         'destroy',
@@ -680,8 +679,8 @@ Route::middleware('auth:sanctum')
 
                 Route::post(
                     'profiles/{sellerProfile:public_id}'
-                    . '/applications/{sellerApplication:public_id}'
-                    . '/submit',
+                    .'/applications/{sellerApplication:public_id}'
+                    .'/submit',
                     [
                         SellerDocumentController::class,
                         'submit',
@@ -740,8 +739,7 @@ Route::middleware('auth:sanctum')
                             'products',
                             ProductController::class
                         )->parameters([
-                            'products' =>
-                                'product',
+                            'products' => 'product',
                         ]);
 
                         /*
@@ -847,11 +845,9 @@ Route::middleware('auth:sanctum')
                             'products.variants',
                             ProductVariantController::class
                         )->parameters([
-                            'products' =>
-                                'product',
+                            'products' => 'product',
 
-                            'variants' =>
-                                'variant',
+                            'variants' => 'variant',
                         ]);
 
                         /*
@@ -862,7 +858,7 @@ Route::middleware('auth:sanctum')
 
                         Route::get(
                             'products/{product:public_id}'
-                            . '/variants/{variant:public_id}/price',
+                            .'/variants/{variant:public_id}/price',
                             [
                                 ProductVariantPriceController::class,
                                 'show',
@@ -874,7 +870,7 @@ Route::middleware('auth:sanctum')
 
                         Route::post(
                             'products/{product:public_id}'
-                            . '/variants/{variant:public_id}/price',
+                            .'/variants/{variant:public_id}/price',
                             [
                                 ProductVariantPriceController::class,
                                 'store',
@@ -889,7 +885,7 @@ Route::middleware('auth:sanctum')
 
                         Route::put(
                             'products/{product:public_id}'
-                            . '/variants/{variant:public_id}/price',
+                            .'/variants/{variant:public_id}/price',
                             [
                                 ProductVariantPriceController::class,
                                 'update',
@@ -904,7 +900,7 @@ Route::middleware('auth:sanctum')
 
                         Route::patch(
                             'products/{product:public_id}'
-                            . '/variants/{variant:public_id}/price',
+                            .'/variants/{variant:public_id}/price',
                             [
                                 ProductVariantPriceController::class,
                                 'update',
@@ -925,7 +921,7 @@ Route::middleware('auth:sanctum')
 
                         Route::get(
                             'products/{product:public_id}'
-                            . '/variants/{variant:public_id}/inventory',
+                            .'/variants/{variant:public_id}/inventory',
                             [
                                 InventoryController::class,
                                 'show',
@@ -937,8 +933,8 @@ Route::middleware('auth:sanctum')
 
                         Route::post(
                             'products/{product:public_id}'
-                            . '/variants/{variant:public_id}'
-                            . '/inventory/adjust',
+                            .'/variants/{variant:public_id}'
+                            .'/inventory/adjust',
                             [
                                 InventoryController::class,
                                 'adjust',
@@ -953,8 +949,8 @@ Route::middleware('auth:sanctum')
 
                         Route::put(
                             'products/{product:public_id}'
-                            . '/variants/{variant:public_id}'
-                            . '/inventory/settings',
+                            .'/variants/{variant:public_id}'
+                            .'/inventory/settings',
                             [
                                 InventoryController::class,
                                 'updateSettings',
@@ -969,8 +965,8 @@ Route::middleware('auth:sanctum')
 
                         Route::patch(
                             'products/{product:public_id}'
-                            . '/variants/{variant:public_id}'
-                            . '/inventory/settings',
+                            .'/variants/{variant:public_id}'
+                            .'/inventory/settings',
                             [
                                 InventoryController::class,
                                 'updateSettings',
@@ -991,8 +987,8 @@ Route::middleware('auth:sanctum')
 
                         Route::get(
                             'products/{product:public_id}'
-                            . '/variants/{variant:public_id}'
-                            . '/inventory/movements',
+                            .'/variants/{variant:public_id}'
+                            .'/inventory/movements',
                             [
                                 StockMovementController::class,
                                 'index',
@@ -1004,8 +1000,8 @@ Route::middleware('auth:sanctum')
 
                         Route::get(
                             'products/{product:public_id}'
-                            . '/variants/{variant:public_id}'
-                            . '/inventory/movements/{movement:public_id}',
+                            .'/variants/{variant:public_id}'
+                            .'/inventory/movements/{movement:public_id}',
                             [
                                 StockMovementController::class,
                                 'show',
@@ -1062,7 +1058,7 @@ Route::middleware('auth:sanctum')
 
                         Route::post(
                             'products/{product:public_id}'
-                            . '/media/{media:public_id}/retry-processing',
+                            .'/media/{media:public_id}/retry-processing',
                             [
                                 ProductMediaController::class,
                                 'retryProcessing',
@@ -1077,7 +1073,7 @@ Route::middleware('auth:sanctum')
 
                         Route::patch(
                             'products/{product:public_id}'
-                            . '/media/{media:public_id}/primary',
+                            .'/media/{media:public_id}/primary',
                             [
                                 ProductMediaController::class,
                                 'setPrimary',
@@ -1092,7 +1088,7 @@ Route::middleware('auth:sanctum')
 
                         Route::delete(
                             'products/{product:public_id}'
-                            . '/media/{media:public_id}',
+                            .'/media/{media:public_id}',
                             [
                                 ProductMediaController::class,
                                 'destroy',
@@ -1116,8 +1112,8 @@ Route::middleware('auth:sanctum')
         Route::prefix('admin')
             ->middleware(
                 RoleMiddleware::class
-                . ':'
-                . User::ROLE_ADMIN
+                .':'
+                .User::ROLE_ADMIN
             )
             ->name('api.admin.')
             ->group(function (): void {
@@ -1132,8 +1128,7 @@ Route::middleware('auth:sanctum')
                     'departments',
                     DepartmentController::class
                 )->parameters([
-                    'departments' =>
-                        'department',
+                    'departments' => 'department',
                 ]);
 
                 Route::put(
@@ -1355,8 +1350,7 @@ Route::middleware('auth:sanctum')
                     'categories',
                     CategoryController::class
                 )->parameters([
-                    'categories' =>
-                        'category',
+                    'categories' => 'category',
                 ]);
 
                 /*
@@ -1453,8 +1447,7 @@ Route::middleware('auth:sanctum')
                     'brands',
                     BrandController::class
                 )->parameters([
-                    'brands' =>
-                        'brand',
+                    'brands' => 'brand',
                 ]);
 
                 /*
@@ -1481,8 +1474,7 @@ Route::middleware('auth:sanctum')
                     'services',
                     ServiceController::class
                 )->parameters([
-                    'services' =>
-                        'service',
+                    'services' => 'service',
                 ]);
 
                 /*
@@ -1649,7 +1641,7 @@ Route::middleware('auth:sanctum')
 
                 Route::post(
                     'seller-applications/{sellerApplication:public_id}'
-                    . '/start-review',
+                    .'/start-review',
                     [
                         SellerVerificationController::class,
                         'startReview',
@@ -1664,7 +1656,7 @@ Route::middleware('auth:sanctum')
 
                 Route::post(
                     'seller-applications/{sellerApplication:public_id}'
-                    . '/request-information',
+                    .'/request-information',
                     [
                         SellerVerificationController::class,
                         'requestInformation',
@@ -1679,7 +1671,7 @@ Route::middleware('auth:sanctum')
 
                 Route::post(
                     'seller-applications/{sellerApplication:public_id}'
-                    . '/approve',
+                    .'/approve',
                     [
                         SellerVerificationController::class,
                         'approve',
@@ -1694,7 +1686,7 @@ Route::middleware('auth:sanctum')
 
                 Route::post(
                     'seller-applications/{sellerApplication:public_id}'
-                    . '/reject',
+                    .'/reject',
                     [
                         SellerVerificationController::class,
                         'reject',
@@ -1715,7 +1707,7 @@ Route::middleware('auth:sanctum')
 
                 Route::post(
                     'seller-applications/{sellerApplication:public_id}'
-                    . '/documents/{sellerDocument:public_id}/scan',
+                    .'/documents/{sellerDocument:public_id}/scan',
                     [
                         SellerVerificationController::class,
                         'scanDocument',
@@ -1730,7 +1722,7 @@ Route::middleware('auth:sanctum')
 
                 Route::post(
                     'seller-applications/{sellerApplication:public_id}'
-                    . '/documents/{sellerDocument:public_id}/approve',
+                    .'/documents/{sellerDocument:public_id}/approve',
                     [
                         SellerVerificationController::class,
                         'approveDocument',
@@ -1745,7 +1737,7 @@ Route::middleware('auth:sanctum')
 
                 Route::post(
                     'seller-applications/{sellerApplication:public_id}'
-                    . '/documents/{sellerDocument:public_id}/reject',
+                    .'/documents/{sellerDocument:public_id}/reject',
                     [
                         SellerVerificationController::class,
                         'rejectDocument',
@@ -1760,7 +1752,7 @@ Route::middleware('auth:sanctum')
 
                 Route::get(
                     'seller-applications/{sellerApplication:public_id}'
-                    . '/documents/{sellerDocument:public_id}/download',
+                    .'/documents/{sellerDocument:public_id}/download',
                     [
                         SellerVerificationController::class,
                         'downloadDocument',
@@ -1790,4 +1782,56 @@ Route::middleware('auth:sanctum')
                         'seller-profiles.suspend'
                     );
             });
+    });
+/*
+|--------------------------------------------------------------------------
+| Public homepage campaigns
+|--------------------------------------------------------------------------
+*/
+
+Route::get(
+    'catalog/homepage-campaigns',
+    [PublicHomepageCampaignController::class, 'index']
+)
+    ->middleware('throttle:120,1')
+    ->name('api.catalog.homepage-campaigns.index');
+
+/*
+|--------------------------------------------------------------------------
+| Admin homepage campaigns
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('admin/homepage-campaigns')
+    ->middleware([
+        'auth:sanctum',
+        RoleMiddleware::class.':admin|superadmin',
+    ])
+    ->name('api.admin.homepage-campaigns.')
+    ->group(function (): void {
+        Route::get(
+            '/',
+            [AdminHomepageCampaignController::class, 'index']
+        )->name('index');
+
+        Route::post(
+            '/',
+            [AdminHomepageCampaignController::class, 'store']
+        )->name('store');
+
+        Route::get(
+            '{homepageCampaign}',
+            [AdminHomepageCampaignController::class, 'show']
+        )->name('show');
+
+        Route::match(
+            ['put', 'patch'],
+            '{homepageCampaign}',
+            [AdminHomepageCampaignController::class, 'update']
+        )->name('update');
+
+        Route::delete(
+            '{homepageCampaign}',
+            [AdminHomepageCampaignController::class, 'destroy']
+        )->name('destroy');
     });
