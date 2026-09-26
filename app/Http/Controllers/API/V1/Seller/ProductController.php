@@ -10,6 +10,8 @@ use App\Http\Requests\Seller\StoreProductRequest;
 use App\Http\Requests\Seller\UpdateProductRequest;
 use App\Http\Resources\SellerProductResource;
 use App\Models\Brand;
+use App\Models\BrandModel;
+use App\Models\BrandSeries;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\SellerProfile;
@@ -133,16 +135,46 @@ final class ProductController extends Controller
                 'is_active',
                 true
             )
+            ->with([
+                'series' => static function (
+                    $query
+                ): void {
+                    $query
+                        ->where(
+                            'is_active',
+                            true
+                        )
+                        ->orderBy(
+                            'sort_order'
+                        )
+                        ->orderBy(
+                            'name'
+                        );
+                },
+
+                'series.models' => static function (
+                    $query
+                ): void {
+                    $query
+                        ->where(
+                            'is_active',
+                            true
+                        )
+                        ->orderBy(
+                            'sort_order'
+                        )
+                        ->orderBy(
+                            'name'
+                        );
+                },
+            ])
             ->orderBy(
                 'sort_order'
             )
             ->orderBy(
                 'name'
             )
-            ->get([
-                'public_id',
-                'name',
-            ])
+            ->get()
             ->map(
                 static function (
                     Brand $brand
@@ -155,6 +187,46 @@ final class ProductController extends Controller
                         'name' =>
                             (string) $brand
                                 ->name,
+
+                        'series' =>
+                            $brand
+                                ->series
+                                ->map(
+                                    static function (
+                                        $series
+                                    ): array {
+                                        return [
+                                            'public_id' =>
+                                                (string) $series
+                                                    ->public_id,
+
+                                            'name' =>
+                                                (string) $series
+                                                    ->name,
+
+                                            'models' =>
+                                                $series
+                                                    ->models
+                                                    ->map(
+                                                        static function (
+                                                            $model
+                                                        ): array {
+                                                            return [
+                                                                'public_id' =>
+                                                                    (string) $model
+                                                                        ->public_id,
+
+                                                                'name' =>
+                                                                    (string) $model
+                                                                        ->name,
+                                                            ];
+                                                        }
+                                                    )
+                                                    ->values(),
+                                        ];
+                                    }
+                                )
+                                ->values(),
                     ];
                 }
             )
@@ -545,18 +617,27 @@ final class ProductController extends Controller
 
         $brand = $request->brand();
 
+        $brandCatalog =
+            $this->resolveBrandCatalog(
+                $request,
+                $brand
+            );
+
         $product = DB::transaction(
             function () use (
                 $request,
                 $sellerProfile,
                 $category,
-                $brand
+                $brand,
+                $brandCatalog
             ): Product {
                 $data = $request->validated();
 
                 unset(
                     $data['category_public_id'],
-                    $data['brand_public_id']
+                    $data['brand_public_id'],
+                    $data['series_public_id'],
+                    $data['model_public_id']
                 );
 
                 $data['category_id'] =
@@ -564,6 +645,12 @@ final class ProductController extends Controller
 
                 $data['brand_id'] =
                     $brand?->getKey();
+
+                $data['brand_series_id'] =
+                    $brandCatalog['series_id'];
+
+                $data['brand_model_id'] =
+                    $brandCatalog['model_id'];
 
                 $data['status'] =
                     ProductStatus::DRAFT->value;
@@ -728,22 +815,45 @@ final class ProductController extends Controller
                     );
                 }
 
+                $finalBrand =
+                    $lockedProduct
+                        ->brand()
+                        ->first();
+
                 if (
                     array_key_exists(
                         'brand_public_id',
                         $data
                     )
                 ) {
-                    $brand =
+                    $finalBrand =
                         $request->submittedBrand();
 
                     $data['brand_id'] =
-                        $brand?->getKey();
+                        $finalBrand?->getKey();
 
                     unset(
                         $data['brand_public_id']
                     );
                 }
+
+                $brandCatalog =
+                    $this->resolveBrandCatalog(
+                        $request,
+                        $finalBrand,
+                        $lockedProduct
+                    );
+
+                $data['brand_series_id'] =
+                    $brandCatalog['series_id'];
+
+                $data['brand_model_id'] =
+                    $brandCatalog['model_id'];
+
+                unset(
+                    $data['series_public_id'],
+                    $data['model_public_id']
+                );
 
                 if (
                     array_key_exists(
@@ -1338,6 +1448,8 @@ final class ProductController extends Controller
         return [
             'category_id',
             'brand_id',
+            'brand_series_id',
+            'brand_model_id',
             'name',
             'slug',
             'short_description',
@@ -1360,6 +1472,10 @@ final class ProductController extends Controller
             'category:id,public_id,parent_id,name,slug,is_active',
 
             'brand:id,public_id,name,slug,logo_path,is_active',
+
+            'brandSeries:id,public_id,brand_id,name,slug,is_active',
+
+            'brandModel:id,public_id,brand_id,brand_series_id,name,slug,is_active',
 
             'returnPolicy',
 
@@ -1553,4 +1669,163 @@ final class ProductController extends Controller
             }
         }
     }
+
+    /**
+     * Resolve and validate an optional Brand → Series → Model selection.
+     *
+     * @return array{series_id: int|null, model_id: int|null}
+     */
+    private function resolveBrandCatalog(
+        Request $request,
+        ?Brand $brand,
+        ?Product $existingProduct = null
+    ): array {
+        $seriesWasSubmitted =
+            $request->exists('series_public_id');
+
+        $modelWasSubmitted =
+            $request->exists('model_public_id');
+
+        $seriesPublicId = trim(
+            (string) $request->input(
+                'series_public_id',
+                ''
+            )
+        );
+
+        $modelPublicId = trim(
+            (string) $request->input(
+                'model_public_id',
+                ''
+            )
+        );
+
+        if (!$brand instanceof Brand) {
+            if (
+                $seriesPublicId !== ''
+                || $modelPublicId !== ''
+            ) {
+                throw ValidationException::withMessages([
+                    'brand_public_id' => [
+                        'Select a brand before selecting a series or model.',
+                    ],
+                ]);
+            }
+
+            return [
+                'series_id' => null,
+                'model_id' => null,
+            ];
+        }
+
+        $series = null;
+
+        if ($seriesWasSubmitted) {
+            if ($seriesPublicId !== '') {
+                $series = BrandSeries::query()
+                    ->where(
+                        'public_id',
+                        $seriesPublicId
+                    )
+                    ->where(
+                        'brand_id',
+                        $brand->getKey()
+                    )
+                    ->where(
+                        'is_active',
+                        true
+                    )
+                    ->first();
+
+                if (!$series instanceof BrandSeries) {
+                    throw ValidationException::withMessages([
+                        'series_public_id' => [
+                            'The selected series does not belong to this brand.',
+                        ],
+                    ]);
+                }
+            }
+        } elseif (
+            $existingProduct instanceof Product
+            && $existingProduct->brand_series_id !== null
+        ) {
+            $series = BrandSeries::query()
+                ->whereKey(
+                    $existingProduct->brand_series_id
+                )
+                ->where(
+                    'brand_id',
+                    $brand->getKey()
+                )
+                ->first();
+        }
+
+        $model = null;
+
+        if ($modelWasSubmitted) {
+            if ($modelPublicId !== '') {
+                if (!$series instanceof BrandSeries) {
+                    throw ValidationException::withMessages([
+                        'series_public_id' => [
+                            'Select a series before selecting a model.',
+                        ],
+                    ]);
+                }
+
+                $model = BrandModel::query()
+                    ->where(
+                        'public_id',
+                        $modelPublicId
+                    )
+                    ->where(
+                        'brand_id',
+                        $brand->getKey()
+                    )
+                    ->where(
+                        'brand_series_id',
+                        $series->getKey()
+                    )
+                    ->where(
+                        'is_active',
+                        true
+                    )
+                    ->first();
+
+                if (!$model instanceof BrandModel) {
+                    throw ValidationException::withMessages([
+                        'model_public_id' => [
+                            'The selected model does not belong to this series.',
+                        ],
+                    ]);
+                }
+            }
+        } elseif (
+            !$seriesWasSubmitted
+            && $existingProduct instanceof Product
+            && $existingProduct->brand_model_id !== null
+        ) {
+            $model = BrandModel::query()
+                ->whereKey(
+                    $existingProduct->brand_model_id
+                )
+                ->where(
+                    'brand_id',
+                    $brand->getKey()
+                )
+                ->where(
+                    'brand_series_id',
+                    $series?->getKey()
+                )
+                ->first();
+        }
+
+        return [
+            'series_id' =>
+                $series?->getKey(),
+
+            'model_id' =>
+                $model?->getKey(),
+        ];
+    }
+
 }

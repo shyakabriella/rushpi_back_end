@@ -192,6 +192,36 @@ final class SellerProductResource extends JsonResource
             |--------------------------------------------------------------------------
             */
 
+            'brand_series' =>
+                $this->whenLoaded(
+                    'brandSeries',
+                    fn (): array => [
+                        'public_id' =>
+                            (string) $this->brandSeries->public_id,
+                        'name' =>
+                            (string) $this->brandSeries->name,
+                        'slug' =>
+                            (string) $this->brandSeries->slug,
+                        'is_active' =>
+                            (bool) $this->brandSeries->is_active,
+                    ]
+                ),
+
+            'brand_model' =>
+                $this->whenLoaded(
+                    'brandModel',
+                    fn (): array => [
+                        'public_id' =>
+                            (string) $this->brandModel->public_id,
+                        'name' =>
+                            (string) $this->brandModel->name,
+                        'slug' =>
+                            (string) $this->brandModel->slug,
+                        'is_active' =>
+                            (bool) $this->brandModel->is_active,
+                    ]
+                ),
+
             'brand' =>
                 $this->whenLoaded(
                     'brand',

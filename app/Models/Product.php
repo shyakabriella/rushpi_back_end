@@ -31,6 +31,8 @@ final class Product extends Model
         'seller_profile_id',
         'category_id',
         'brand_id',
+        'brand_series_id',
+        'brand_model_id',
         'name',
         'slug',
         'short_description',
@@ -215,6 +217,28 @@ final class Product extends Model
     {
         return $this->belongsTo(
             Brand::class
+        );
+    }
+
+    /**
+     * Selected product series.
+     */
+    public function brandSeries(): BelongsTo
+    {
+        return $this->belongsTo(
+            BrandSeries::class,
+            'brand_series_id'
+        );
+    }
+
+    /**
+     * Selected product model.
+     */
+    public function brandModel(): BelongsTo
+    {
+        return $this->belongsTo(
+            BrandModel::class,
+            'brand_model_id'
         );
     }
 
