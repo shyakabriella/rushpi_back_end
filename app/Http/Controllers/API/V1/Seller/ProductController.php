@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\API\V1\Seller;
 
 use App\Enums\ProductStatus;
+use App\Enums\SellerProfileStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Seller\StoreProductRequest;
 use App\Http\Requests\Seller\UpdateProductRequest;
@@ -1024,7 +1025,7 @@ final class ProductController extends Controller
     }
 
     /**
-     * Submit a complete product for administrator moderation.
+     * Validate and immediately publish a verified seller product.
      */
     public function submitForReview(
         Request $request,
@@ -1036,6 +1037,21 @@ final class ProductController extends Controller
             $sellerProfile,
             $product
         );
+
+        $sellerStatus =
+            $sellerProfile->status instanceof BackedEnum
+                ? $sellerProfile->status->value
+                : (string) $sellerProfile->status;
+
+        if (
+            $sellerStatus !==
+            SellerProfileStatus::APPROVED->value
+        ) {
+            abort(
+                403,
+                'Only verified sellers can publish products.'
+            );
+        }
 
         $submittedProduct = DB::transaction(
             function () use (
@@ -1071,7 +1087,7 @@ final class ProductController extends Controller
                 ) {
                     abort(
                         409,
-                        'Only draft or rejected products can be submitted for moderation.'
+                        'Only draft or rejected products can be published.'
                     );
                 }
 
@@ -1147,15 +1163,19 @@ final class ProductController extends Controller
                     $lockedProduct,
                     [
                         'status' =>
-                            ProductStatus::PENDING_REVIEW
+                            ProductStatus::APPROVED
                                 ->value,
 
                         'submitted_at' =>
                             now(),
 
                         'approved_at' =>
-                            null,
+                            now(),
 
+                        /*
+                         * Null means the product was automatically
+                         * approved because the seller is verified.
+                         */
                         'approved_by' =>
                             null,
 
@@ -1196,7 +1216,7 @@ final class ProductController extends Controller
             'success' => true,
 
             'message' =>
-                'Product submitted for review successfully.',
+                'Product published successfully.',
 
             'data' => (
                 new SellerProductResource(
